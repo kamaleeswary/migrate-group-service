@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>Application.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird</a> &gt; <span class="el_source">Application.java</span></div><h1>Application.java</h1><pre class="source lang-java linenums">package org.sunbird;
+
+import akka.actor.ActorRef;
+import java.util.ArrayList;
+import java.util.List;
+import org.sunbird.actor.core.ActorCache;
+import org.sunbird.actor.core.ActorService;
+import org.sunbird.common.exception.BaseException;
+
+/** this class is used to instantiate the actor system. */
+public class Application {
+  private static final String actorSystemName = &quot;thisActorSystem&quot;;
+<span class="nc" id="L13">  private static Application instance = new Application();</span>
+
+  // private constructor restricted to this class itself
+  private Application() {}
+
+  // static method to create instance of ActorService class
+  public static Application getInstance() {
+<span class="nc" id="L20">    return instance;</span>
+  }
+
+  // instantiate actor system and actors
+  public void init() throws BaseException {
+<span class="nc" id="L25">    List&lt;String&gt; actorClassPaths = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L26">    actorClassPaths.add(&quot;org.sunbird&quot;);</span>
+<span class="nc" id="L27">    ActorService.getInstance().init(actorSystemName, actorClassPaths);</span>
+<span class="nc" id="L28">  }</span>
+
+  /**
+   * this method is used to get the reference of actor from in memory cache.
+   *
+   * @param operation
+   * @return
+   */
+  public ActorRef getActorRef(String operation) {
+<span class="nc" id="L37">    return ActorCache.getActorRef(operation);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

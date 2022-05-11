@@ -1,0 +1,425 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MemberServiceImpl.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.service</a> &gt; <span class="el_source">MemberServiceImpl.java</span></div><h1>MemberServiceImpl.java</h1><pre class="source lang-java linenums">package org.sunbird.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
+import java.sql.Timestamp;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.common.util.NotificationType;
+import org.sunbird.dao.MemberDao;
+import org.sunbird.dao.MemberDaoImpl;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.models.Member;
+import org.sunbird.models.MemberResponse;
+import org.sunbird.common.response.Response;
+import org.sunbird.notifications.NotificationManager;
+import org.sunbird.util.GroupUtil;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.LoggerUtil;
+
+<span class="nc" id="L29">public class MemberServiceImpl implements MemberService {</span>
+
+<span class="nc" id="L31">  private static MemberDao memberDao = MemberDaoImpl.getInstance();</span>
+<span class="nc" id="L32">  private static LoggerUtil logger = new LoggerUtil(MemberServiceImpl.class);</span>
+<span class="nc" id="L33">  private static ObjectMapper objectMapper = new ObjectMapper();</span>
+<span class="nc" id="L34">  private static UserService userService = UserServiceImpl.getInstance();</span>
+
+  @Override
+  public Response addMembers(List&lt;Member&gt; members, List&lt;Map&lt;String, Object&gt;&gt; dbResGroupIds, Map&lt;String, Object&gt; reqContext, String updatedBy)
+      throws BaseException {
+<span class="nc" id="L39">    Response response = memberDao.addMembers(members, reqContext);</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">    if (response != null</span>
+<span class="nc bnc" id="L41" title="All 4 branches missed.">        &amp;&amp; response.getResult().get(JsonKey.RESPONSE) != null</span>
+        &amp;&amp; dbResGroupIds == null) {
+<span class="nc" id="L43">      dbResGroupIds = getGroupIdsforUserIds(GroupUtil.getMemberIdList(members), reqContext);</span>
+    }
+    // Update if userId is already in DB, otherwise insert
+<span class="nc" id="L46">    addGroupInUserGroup(members, dbResGroupIds, reqContext);</span>
+    // CALL Notification for Member Add
+<span class="nc" id="L48">    Map&lt;String,Object&gt; notificationObj = createMemberUpdateNotificationObject(members,updatedBy);</span>
+<span class="nc" id="L49">    return response;</span>
+  }
+
+
+
+  @Override
+  public List&lt;Map&lt;String, Object&gt;&gt; getGroupIdsforUserIds(List&lt;String&gt; member, Map&lt;String, Object&gt; reqContext) {
+<span class="nc" id="L56">    Response userGroupResponseObj = memberDao.readGroupIdsByUserIds(member, reqContext);</span>
+
+<span class="nc" id="L58">    List&lt;Map&lt;String, Object&gt;&gt; dbResGroupIds = null;</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">    if (null != userGroupResponseObj &amp;&amp; null != userGroupResponseObj.getResult()) {</span>
+<span class="nc" id="L60">      dbResGroupIds =</span>
+<span class="nc" id="L61">          (List&lt;Map&lt;String, Object&gt;&gt;) userGroupResponseObj.getResult().get(JsonKey.RESPONSE);</span>
+    }
+<span class="nc" id="L63">    return dbResGroupIds;</span>
+  }
+
+  private void addGroupInUserGroup(List&lt;Member&gt; memberList, List&lt;Map&lt;String, Object&gt;&gt; dbResGroupIds, Map&lt;String, Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L68">    logger.info(</span>
+<span class="nc" id="L69">        reqContext, MessageFormat.format(&quot;User Group table update started for the group id {0}&quot;, memberList.get(0).getGroupId()));</span>
+<span class="nc" id="L70">    memberList</span>
+<span class="nc" id="L71">        .stream()</span>
+<span class="nc" id="L72">        .forEach(</span>
+            data -&gt; {
+<span class="nc" id="L74">              Map&lt;String, Object&gt; userGroupMap = createUserGroupRecord(new HashSet&lt;&gt;(), data);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">              if (CollectionUtils.isNotEmpty(dbResGroupIds)) {</span>
+<span class="nc" id="L76">                Map&lt;String, Object&gt; userDbMap =</span>
+                    dbResGroupIds
+<span class="nc" id="L78">                        .stream()</span>
+<span class="nc" id="L79">                        .filter(</span>
+<span class="nc" id="L80">                            dbMap -&gt; (data.getUserId()).equals((String) dbMap.get(JsonKey.USER_ID)))</span>
+<span class="nc" id="L81">                        .findFirst()</span>
+<span class="nc" id="L82">                        .orElse(null);</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                if (MapUtils.isNotEmpty(userDbMap)) {</span>
+<span class="nc" id="L84">                  userGroupMap =</span>
+<span class="nc" id="L85">                      createUserGroupRecord((Set&lt;String&gt;) userDbMap.get(JsonKey.GROUP_ID), data);</span>
+                }
+              }
+<span class="nc bnc" id="L88" title="All 2 branches missed.">              if (MapUtils.isNotEmpty(userGroupMap)) {</span>
+<span class="nc" id="L89">                memberDao.upsertGroupInUserGroup(userGroupMap, reqContext);</span>
+              }
+<span class="nc" id="L91">            });</span>
+<span class="nc" id="L92">  }</span>
+
+  private Map&lt;String, Object&gt; createUserGroupRecord(Set&lt;String&gt; groupSet, Member data) {
+<span class="nc" id="L95">    Map&lt;String, Object&gt; userGroupMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L96">    groupSet.add(data.getGroupId());</span>
+<span class="nc" id="L97">    userGroupMap.put(JsonKey.USER_ID, data.getUserId());</span>
+<span class="nc" id="L98">    userGroupMap.put(JsonKey.GROUP_ID, groupSet);</span>
+<span class="nc" id="L99">    return userGroupMap;</span>
+  }
+
+  @Override
+  public Response editMembers(List&lt;Member&gt; member, Map&lt;String, Object&gt; reqContext, String updatedBy) throws BaseException {
+<span class="nc" id="L104">    Response response = memberDao.editMembers(member, reqContext);</span>
+
+    //Call Notification for member edit
+<span class="nc" id="L107">    Map&lt;String,Object&gt; notificationObj = createMemberUpdateNotificationObject(member,updatedBy);</span>
+<span class="nc" id="L108">    return response;</span>
+  }
+
+  @Override
+  public Response removeMembers(List&lt;Member&gt; member, Map&lt;String, Object&gt; reqContext, String updatedBy) throws BaseException {
+<span class="nc" id="L113">    Response response = memberDao.editMembers(member, reqContext);</span>
+
+<span class="nc bnc" id="L115" title="All 4 branches missed.">    if (response != null &amp;&amp; response.getResult().get(JsonKey.RESPONSE) != null) {</span>
+<span class="nc" id="L116">      List&lt;Map&lt;String, Object&gt;&gt; dbResGroupIds =</span>
+<span class="nc" id="L117">          getGroupIdsforUserIds(GroupUtil.getMemberIdList(member), reqContext);</span>
+<span class="nc" id="L118">      removeGroupInUserGroup(member, dbResGroupIds, reqContext);</span>
+      //Call Notification for member remove
+<span class="nc" id="L120">      Map&lt;String,Object&gt; notificationObj = createMemberUpdateNotificationObject(member,updatedBy);</span>
+    }
+<span class="nc" id="L122">    return response;</span>
+  }
+
+  @Override
+  public void removeGroupInUserGroup(
+      List&lt;Member&gt; memberList, List&lt;Map&lt;String, Object&gt;&gt; dbResGroupIds, Map&lt;String, Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L128">    logger.info(</span>
+<span class="nc" id="L129">        reqContext,MessageFormat.format(&quot;User Group table update started for the group id {0}&quot;, memberList.get(0).getGroupId()));</span>
+
+<span class="nc" id="L131">    memberList</span>
+<span class="nc" id="L132">        .stream()</span>
+<span class="nc" id="L133">        .forEach(</span>
+            data -&gt; {
+<span class="nc" id="L135">              Map&lt;String, Object&gt; userGroupMap = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">              if (CollectionUtils.isNotEmpty(dbResGroupIds)) {</span>
+<span class="nc" id="L137">                dbResGroupIds</span>
+<span class="nc" id="L138">                    .stream()</span>
+<span class="nc" id="L139">                    .forEach(</span>
+                        map -&gt; {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                          if ((data.getUserId()).equals((String) map.get(JsonKey.USER_ID))) {</span>
+<span class="nc" id="L142">                            Set&lt;String&gt; groupIdsSet = (Set&lt;String&gt;) map.get(JsonKey.GROUP_ID);</span>
+<span class="nc" id="L143">                            groupIdsSet.remove(data.getGroupId());</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                            if (groupIdsSet.size() == 0) {</span>
+<span class="nc" id="L145">                              memberDao.deleteFromUserGroup(data.getUserId(), reqContext);</span>
+                            } else {
+<span class="nc" id="L147">                              userGroupMap.put(JsonKey.GROUP_ID, groupIdsSet);</span>
+                            }
+                          }
+<span class="nc" id="L150">                        });</span>
+              }
+<span class="nc bnc" id="L152" title="All 4 branches missed.">              if (MapUtils.isNotEmpty(userGroupMap) &amp;&amp; userGroupMap.size() &gt; 0) {</span>
+<span class="nc" id="L153">                memberDao.updateGroupInUserGroup(userGroupMap, data.getUserId(), reqContext);</span>
+              }
+<span class="nc" id="L155">            });</span>
+<span class="nc" id="L156">  }</span>
+
+  @Override
+  public void deleteGroupMembers(String groupId, List&lt;String&gt; members, Map&lt;String, Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L160">    memberDao.deleteMemberFromGroup(groupId, members, reqContext);</span>
+<span class="nc" id="L161">  }</span>
+
+  public void handleMemberOperations(Map memberOperationMap, String groupId, String updatedBy, Map&lt;String, Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L165">    List&lt;Map&lt;String, Object&gt;&gt; memberAddList =</span>
+<span class="nc" id="L166">        (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(memberAddList)) {</span>
+<span class="nc" id="L168">      Response addMemberRes = handleMemberAddition(memberAddList, groupId, updatedBy, null, reqContext);</span>
+    }
+<span class="nc" id="L170">    List&lt;Map&lt;String, Object&gt;&gt; memberEditList =</span>
+<span class="nc" id="L171">        (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.EDIT);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(memberEditList)) {</span>
+<span class="nc" id="L173">      List&lt;Member&gt; editMembers =</span>
+          memberEditList
+<span class="nc" id="L175">              .stream()</span>
+<span class="nc" id="L176">              .map(data -&gt; getMemberModelForEdit(data, groupId, updatedBy))</span>
+<span class="nc" id="L177">              .collect(Collectors.toList());</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">      if (!editMembers.isEmpty()) {</span>
+<span class="nc" id="L179">        logger.info(reqContext,MessageFormat.format(</span>
+<span class="nc" id="L180">            &quot;Number of members to be modified in the group {0} are {1}&quot;, groupId, editMembers.size()));</span>
+<span class="nc" id="L181">        Response editMemberRes = editMembers(editMembers, reqContext, updatedBy);</span>
+      }
+    }
+<span class="nc" id="L184">    List&lt;String&gt; memberRemoveList = (List&lt;String&gt;) memberOperationMap.get(JsonKey.REMOVE);</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(memberRemoveList)) {</span>
+<span class="nc" id="L186">      List&lt;Member&gt; removeMembers =</span>
+          memberRemoveList
+<span class="nc" id="L188">              .stream()</span>
+<span class="nc" id="L189">              .map(data -&gt; getMemberModelForRemove(data, groupId, updatedBy))</span>
+<span class="nc" id="L190">              .collect(Collectors.toList());</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">      if (!removeMembers.isEmpty()) {</span>
+<span class="nc" id="L192">        logger.info(reqContext,MessageFormat.format(</span>
+            &quot;Number of members needs to be removed from the group {0} are {1}&quot;,
+            groupId,
+<span class="nc" id="L195">            removeMembers.size()));</span>
+<span class="nc" id="L196">        Response removeMemberRes = removeMembers(removeMembers, reqContext, updatedBy);</span>
+      }
+    }
+<span class="nc" id="L199">  }</span>
+
+  @Override
+  public Response handleMemberAddition(
+      List&lt;Map&lt;String, Object&gt;&gt; memberList,
+      String groupId,
+      String updatedBy,
+      List&lt;Map&lt;String, Object&gt;&gt; userGroupsList,
+      Map&lt;String, Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L209">    logger.info(reqContext,MessageFormat.format(&quot;Number of members to be added to the group {0} are {1}&quot;, groupId, memberList.size()));</span>
+<span class="nc" id="L210">    Response addMemberRes = new Response();</span>
+<span class="nc" id="L211">    List&lt;Member&gt; members =</span>
+        memberList
+<span class="nc" id="L213">            .stream()</span>
+<span class="nc" id="L214">            .map(data -&gt; getMemberModelForAdd(data, groupId, updatedBy))</span>
+<span class="nc" id="L215">            .collect(Collectors.toList());</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">    if (!members.isEmpty()) {</span>
+<span class="nc" id="L217">      addMemberRes = addMembers(members, userGroupsList, reqContext,updatedBy);</span>
+    }
+<span class="nc" id="L219">    return addMemberRes;</span>
+  }
+
+  /**
+   * Fetch Member Details based on Group
+   *
+   * @param groupId
+   * @return
+   * @throws BaseException
+   */
+  @Override
+  public List&lt;MemberResponse&gt; readGroupMembers(String groupId, Map&lt;String, Object&gt; reqContext)
+      throws BaseException {
+
+<span class="nc" id="L233">    List&lt;MemberResponse&gt; members = fetchMembersByGroupIds(Lists.newArrayList(groupId), reqContext);</span>
+
+<span class="nc bnc" id="L235" title="All 2 branches missed.">    if (!members.isEmpty()) {</span>
+<span class="nc" id="L236">      fetchMemberDetails(members, reqContext);</span>
+    }
+<span class="nc" id="L238">    return members;</span>
+  }
+
+  /**
+   * Fetch Members based on Group
+   *
+   * @param groupId
+   * @return
+   * @throws BaseException
+   */
+  @Override
+  public List&lt;MemberResponse&gt; fetchMembersByGroupId(String groupId, Map&lt;String, Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L250">    List&lt;MemberResponse&gt; members = fetchMembersByGroupIds(Lists.newArrayList(groupId), reqContext);</span>
+<span class="nc" id="L251">    return members;</span>
+  }
+
+  /**
+   * Fetch Members based on Group
+   *
+   * @param groupIds
+   * @return
+   * @throws BaseException
+   */
+  @Override
+  public List&lt;MemberResponse&gt; fetchMembersByGroupIds(List&lt;String&gt; groupIds, Map&lt;String, Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L263">    Response response = memberDao.fetchMembersByGroupIds(groupIds, reqContext);</span>
+<span class="nc" id="L264">    List&lt;MemberResponse&gt; members = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L265" title="All 4 branches missed.">    if (null != response &amp;&amp; null != response.getResult()) {</span>
+<span class="nc" id="L266">      List&lt;Map&lt;String, Object&gt;&gt; dbResMembers =</span>
+<span class="nc" id="L267">          (List&lt;Map&lt;String, Object&gt;&gt;) response.getResult().get(JsonKey.RESPONSE);</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">      if (null != dbResMembers) {</span>
+<span class="nc" id="L269">        logger.info(reqContext,MessageFormat.format(&quot;Group members fetched count : {0}&quot;, dbResMembers.size()));</span>
+<span class="nc" id="L270">        dbResMembers.forEach(</span>
+            map -&gt; {
+<span class="nc" id="L272">              Member member = objectMapper.convertValue(map, Member.class);</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">              if (JsonKey.ACTIVE.equals(member.getStatus())) {</span>
+<span class="nc" id="L274">                MemberResponse memberResponse = createMemberResponseObj(member);</span>
+<span class="nc" id="L275">                members.add(memberResponse);</span>
+              }
+<span class="nc" id="L277">            });</span>
+      }
+    }
+<span class="nc" id="L280">    return members;</span>
+  }
+
+  public void fetchMemberDetails(List&lt;MemberResponse&gt; members, Map&lt;String, Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L285">    List&lt;String&gt; memberIds = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L286">    members.forEach(</span>
+        member -&gt; {
+<span class="nc" id="L288">          memberIds.add(member.getUserId());</span>
+<span class="nc" id="L289">        });</span>
+<span class="nc" id="L290">    logger.info(reqContext,&quot;Fetching member names&quot;);</span>
+<span class="nc" id="L291">    Response response = userService.searchUserByIds(memberIds, reqContext);</span>
+<span class="nc bnc" id="L292" title="All 4 branches missed.">    if (null != response &amp;&amp; null != response.getResult()) {</span>
+<span class="nc" id="L293">      Map&lt;String, Object&gt; memberRes =</span>
+<span class="nc" id="L294">          (Map&lt;String, Object&gt;) response.getResult().get(JsonKey.RESPONSE);</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">      if (null != memberRes) {</span>
+<span class="nc" id="L296">        List&lt;Map&lt;String, Object&gt;&gt; userDetails =</span>
+<span class="nc" id="L297">            (List&lt;Map&lt;String, Object&gt;&gt;) memberRes.get(JsonKey.CONTENT);</span>
+<span class="nc" id="L298">        members.forEach(</span>
+            member -&gt; {
+<span class="nc" id="L300">              Map&lt;String, Object&gt; userInfo =</span>
+                  userDetails
+<span class="nc" id="L302">                      .stream()</span>
+<span class="nc" id="L303">                      .filter(x -&gt; member.getUserId().equals((String) x.get(JsonKey.ID)))</span>
+<span class="nc" id="L304">                      .findFirst()</span>
+<span class="nc" id="L305">                      .orElse(null);</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">              if (userInfo != null) {</span>
+                String firstName =
+<span class="nc bnc" id="L308" title="All 2 branches missed.">                    StringUtils.isNotEmpty((String) userInfo.get(JsonKey.FIRSTNAME))</span>
+<span class="nc" id="L309">                        ? (String) userInfo.get(JsonKey.FIRSTNAME)</span>
+<span class="nc" id="L310">                        : &quot;&quot;;</span>
+
+                String lastName =
+<span class="nc bnc" id="L313" title="All 2 branches missed.">                    StringUtils.isNotEmpty((String) userInfo.get(JsonKey.LASTNAME))</span>
+<span class="nc" id="L314">                        ? &quot; &quot; + (String) userInfo.get(JsonKey.LASTNAME)</span>
+<span class="nc" id="L315">                        : &quot;&quot;;</span>
+<span class="nc" id="L316">                member.setName(firstName + lastName);</span>
+              }
+<span class="nc" id="L318">            });</span>
+      }
+    }
+<span class="nc" id="L321">  }</span>
+
+  @Override
+  public List&lt;Map&lt;String, Object&gt;&gt; fetchGroupByUser(List&lt;String&gt; groupIds, String userId, Map&lt;String, Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L326">    List&lt;Map&lt;String, Object&gt;&gt; dbResMembers = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L327">    Response response = memberDao.fetchGroupByUser(groupIds, userId, reqContext);</span>
+<span class="nc bnc" id="L328" title="All 4 branches missed.">    if (null != response &amp;&amp; null != response.getResult()) {</span>
+<span class="nc" id="L329">      dbResMembers = (List&lt;Map&lt;String, Object&gt;&gt;) response.getResult().get(JsonKey.RESPONSE);</span>
+    }
+<span class="nc" id="L331">    return dbResMembers;</span>
+  }
+
+  private Member getMemberModelForAdd(
+      Map&lt;String, Object&gt; data, String groupId, String contextUserId) {
+<span class="nc" id="L336">    Member member = new Member();</span>
+<span class="nc" id="L337">    member.setGroupId(groupId);</span>
+<span class="nc" id="L338">    String role = (String) data.get(JsonKey.ROLE);</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">    if (StringUtils.isNotEmpty(role)) {</span>
+<span class="nc" id="L340">      member.setRole(role);</span>
+    } else {
+<span class="nc" id="L342">      member.setRole(JsonKey.MEMBER);</span>
+    }
+<span class="nc" id="L344">    member.setUserId((String) data.get(JsonKey.USER_ID));</span>
+<span class="nc" id="L345">    member.setStatus(JsonKey.ACTIVE);</span>
+<span class="nc" id="L346">    member.setCreatedBy(contextUserId);</span>
+<span class="nc" id="L347">    member.setCreatedOn(new Timestamp(System.currentTimeMillis()));</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">    if (null != data.get(JsonKey.VISITED)) {</span>
+<span class="nc" id="L349">      member.setVisited((Boolean) data.get(JsonKey.VISITED));</span>
+    } else {
+<span class="nc bnc" id="L351" title="All 2 branches missed.">      member.setVisited(member.getUserId().equals(member.getCreatedBy()) ? true : false);</span>
+    }
+<span class="nc" id="L353">    return member;</span>
+  }
+
+  private Member getMemberModelForEdit(
+      Map&lt;String, Object&gt; data, String groupId, String contextUserId) {
+<span class="nc" id="L358">    Member member = new Member();</span>
+<span class="nc" id="L359">    member.setGroupId(groupId);</span>
+<span class="nc" id="L360">    String role = (String) data.get(JsonKey.ROLE);</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">    if (StringUtils.isNotEmpty(role)) {</span>
+<span class="nc" id="L362">      member.setRole(role);</span>
+    } else {
+<span class="nc" id="L364">      member.setRole(JsonKey.MEMBER);</span>
+    }
+<span class="nc bnc" id="L366" title="All 2 branches missed.">    if (null != data.get(JsonKey.VISITED)) {</span>
+<span class="nc" id="L367">      member.setVisited((Boolean) data.get(JsonKey.VISITED));</span>
+    }
+<span class="nc" id="L369">    member.setUserId((String) data.get(JsonKey.USER_ID));</span>
+<span class="nc" id="L370">    member.setUpdatedBy(contextUserId);</span>
+<span class="nc" id="L371">    member.setUpdatedOn(new Timestamp(System.currentTimeMillis()));</span>
+
+<span class="nc" id="L373">    return member;</span>
+  }
+
+  private Member getMemberModelForRemove(String userId, String groupId, String contextUserId) {
+<span class="nc" id="L377">    Member member = new Member();</span>
+<span class="nc" id="L378">    member.setGroupId(groupId);</span>
+<span class="nc" id="L379">    member.setUserId(userId);</span>
+<span class="nc" id="L380">    member.setStatus(JsonKey.INACTIVE);</span>
+<span class="nc" id="L381">    member.setRemovedBy(contextUserId);</span>
+<span class="nc" id="L382">    member.setRemovedOn(new Timestamp(System.currentTimeMillis()));</span>
+
+<span class="nc" id="L384">    return member;</span>
+  }
+
+  private MemberResponse createMemberResponseObj(Member member) {
+<span class="nc" id="L388">    MemberResponse memberResponse = new MemberResponse();</span>
+<span class="nc" id="L389">    memberResponse.setGroupId(member.getGroupId());</span>
+<span class="nc" id="L390">    memberResponse.setUserId(member.getUserId());</span>
+<span class="nc" id="L391">    memberResponse.setRole(member.getRole());</span>
+<span class="nc" id="L392">    memberResponse.setStatus(member.getStatus());</span>
+<span class="nc" id="L393">    memberResponse.setCreatedBy(member.getCreatedBy());</span>
+<span class="nc" id="L394">    memberResponse.setRemovedBy(member.getRemovedBy());</span>
+<span class="nc" id="L395">    memberResponse.setUpdatedBy(member.getUpdatedBy());</span>
+<span class="nc" id="L396">    memberResponse.setCreatedOn(</span>
+<span class="nc bnc" id="L397" title="All 2 branches missed.">        member.getCreatedOn() != null</span>
+<span class="nc" id="L398">            ? GroupUtil.convertTimestampToUTC(member.getCreatedOn().getTime())</span>
+<span class="nc" id="L399">            : null);</span>
+<span class="nc" id="L400">    memberResponse.setUpdatedOn(</span>
+<span class="nc bnc" id="L401" title="All 2 branches missed.">        member.getUpdatedOn() != null</span>
+<span class="nc" id="L402">            ? GroupUtil.convertTimestampToUTC(member.getUpdatedOn().getTime())</span>
+<span class="nc" id="L403">            : null);</span>
+<span class="nc" id="L404">    memberResponse.setRemovedOn(</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">        member.getRemovedOn() != null</span>
+<span class="nc" id="L406">            ? GroupUtil.convertTimestampToUTC(member.getRemovedOn().getTime())</span>
+<span class="nc" id="L407">            : null);</span>
+<span class="nc" id="L408">    return memberResponse;</span>
+  }
+
+  /**
+   *  Create notification context for Member ADD
+   * @param members
+   * @param userId
+   * @return
+   */
+  private Map&lt;String, Object&gt; createMemberUpdateNotificationObject(List&lt;Member&gt; members, String userId) {
+<span class="nc" id="L418">    Map&lt;String,Object&gt; notificationObj = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L419">    notificationObj.put(JsonKey.GROUP_ID,members.get(0).getGroupId());</span>
+<span class="nc" id="L420">    notificationObj.put(JsonKey.MEMBERS,members);</span>
+<span class="nc" id="L421">    notificationObj.put(JsonKey.UPDATED_BY,userId);</span>
+<span class="nc" id="L422">    return notificationObj;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

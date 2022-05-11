@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GroupRequestHandler.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">GroupRequestHandler.java</span></div><h1>GroupRequestHandler.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.models.Group;
+import org.sunbird.models.MemberResponse;
+import org.sunbird.common.request.Request;
+
+<span class="nc" id="L16">public class GroupRequestHandler {</span>
+
+<span class="nc" id="L18">  LoggerUtil logger = new LoggerUtil(GroupRequestHandler.class);</span>
+
+  public Group handleCreateGroupRequest(Request actorMessage) {
+<span class="nc" id="L21">    Group group = new Group();</span>
+<span class="nc" id="L22">    group.setName((String) actorMessage.getRequest().get(JsonKey.NAME));</span>
+<span class="nc" id="L23">    group.setDescription((String) actorMessage.getRequest().get(JsonKey.DESC));</span>
+<span class="nc" id="L24">    String membershipType = (String) actorMessage.getRequest().get(JsonKey.GROUP_MEMBERSHIP_TYPE);</span>
+<span class="nc bnc" id="L25" title="All 2 branches missed.">    if (StringUtils.isNotEmpty(membershipType)) {</span>
+<span class="nc" id="L26">      group.setMembershipType(membershipType);</span>
+    } else {
+<span class="nc" id="L28">      group.setMembershipType(JsonKey.INVITE_ONLY);</span>
+    }
+<span class="nc" id="L30">    group.setStatus(JsonKey.ACTIVE);</span>
+<span class="nc" id="L31">    group.setCreatedBy(getRequestedBy(actorMessage));</span>
+<span class="nc" id="L32">    group.setId(UUID.randomUUID().toString());</span>
+<span class="nc" id="L33">    List&lt;Map&lt;String, Object&gt;&gt; activityList =</span>
+<span class="nc" id="L34">        (List&lt;Map&lt;String, Object&gt;&gt;) actorMessage.getRequest().get(JsonKey.ACTIVITIES);</span>
+<span class="nc bnc" id="L35" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(activityList)) {</span>
+<span class="nc" id="L36">      logger.info(actorMessage.getContext(), MessageFormat.format(&quot;adding activities to the group {0} are {1}&quot;, group.getId(), activityList.size()));</span>
+<span class="nc" id="L37">      group.setActivities(activityList);</span>
+    }
+<span class="nc" id="L39">    return group;</span>
+  }
+
+  public Group handleUpdateGroupRequest(Request actorMessage) {
+<span class="nc" id="L43">    Group group = new Group();</span>
+<span class="nc" id="L44">    group.setId((String) actorMessage.getRequest().get(JsonKey.GROUP_ID));</span>
+<span class="nc" id="L45">    group.setName((String) actorMessage.getRequest().get(JsonKey.NAME));</span>
+<span class="nc" id="L46">    group.setDescription((String) actorMessage.getRequest().get(JsonKey.DESC));</span>
+<span class="nc" id="L47">    group.setMembershipType((String) actorMessage.getRequest().get(JsonKey.GROUP_MEMBERSHIP_TYPE));</span>
+<span class="nc" id="L48">    String status = (String) actorMessage.getRequest().get(JsonKey.GROUP_STATUS);</span>
+
+    // inactive status to be included to support backward compatability for old mobile apps
+<span class="nc bnc" id="L51" title="All 2 branches missed.">    if (StringUtils.isNotEmpty(status)</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        &amp;&amp; (status.equals(JsonKey.SUSPENDED)</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            || status.equals(JsonKey.INACTIVE)</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            || status.equals(JsonKey.ACTIVE))) {</span>
+<span class="nc" id="L55">      group.setStatus(status);</span>
+    }
+<span class="nc" id="L57">    group.setUpdatedBy(getRequestedBy(actorMessage));</span>
+
+<span class="nc" id="L59">    return group;</span>
+  }
+
+  public String getRequestedBy(Request actorMessage) {
+<span class="nc" id="L63">    String contextUserId = (String) actorMessage.getContext().get(JsonKey.USER_ID);</span>
+<span class="nc" id="L64">    String managedFor = (String) actorMessage.getContext().get(JsonKey.MANAGED_FOR);</span>
+
+<span class="nc" id="L66">    logger.info(actorMessage.getContext(),JsonKey.USER_ID + &quot; in getRequestedBy(): &quot; + contextUserId);</span>
+<span class="nc" id="L67">    logger.info(actorMessage.getContext(), JsonKey.MANAGED_FOR + &quot; in getRequestedBy(): &quot; + managedFor);</span>
+
+    // If MUA, then use that userid for createdby and updateby
+<span class="nc bnc" id="L70" title="All 2 branches missed.">    if (StringUtils.isNotEmpty(managedFor)) {</span>
+<span class="nc" id="L71">      contextUserId = managedFor;</span>
+    }
+<span class="nc" id="L73">    return contextUserId;</span>
+  }
+
+  public void validateAddMembers(
+      Map memberOperationMap,
+      List&lt;MemberResponse&gt; membersInDB,
+      List&lt;Map&lt;String, String&gt;&gt; memberErrorList) {
+<span class="nc" id="L80">    List&lt;Map&lt;String, Object&gt;&gt; memberAddList =</span>
+<span class="nc" id="L81">        (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD);</span>
+<span class="nc" id="L82">    List&lt;Map&lt;String, Object&gt;&gt; newMemberAddList = new ArrayList&lt;Map&lt;String, Object&gt;&gt;();</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(memberAddList)) {</span>
+      // Check if members in add request is already existing, if not create new list
+<span class="nc bnc" id="L85" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(membersInDB)) {</span>
+<span class="nc" id="L86">        memberAddList</span>
+<span class="nc" id="L87">            .stream()</span>
+<span class="nc" id="L88">            .forEach(</span>
+                e -&gt; {
+<span class="nc" id="L90">                  if (membersInDB</span>
+<span class="nc" id="L91">                          .stream()</span>
+<span class="nc" id="L92">                          .filter(d -&gt; d.getUserId().equals(e.get(JsonKey.USER_ID)))</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                          .count()</span>
+                      &gt; 0) {
+<span class="nc" id="L95">                    Map errorMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L96">                    errorMap.put(JsonKey.USER_ID, e.get(JsonKey.USER_ID));</span>
+<span class="nc" id="L97">                    errorMap.put(JsonKey.ERROR_CODE, JsonKey.MEMBER_EXISTS);</span>
+<span class="nc" id="L98">                    memberErrorList.add(errorMap);</span>
+<span class="nc" id="L99">                  } else {</span>
+                    // Remove duplicates in new list
+<span class="nc" id="L101">                    if (!newMemberAddList</span>
+<span class="nc" id="L102">                        .stream()</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                        .anyMatch(mi -&gt; mi.get(JsonKey.USER_ID).equals(e.get(JsonKey.USER_ID)))) {</span>
+<span class="nc" id="L104">                      newMemberAddList.add(e);</span>
+                    }
+                  }
+<span class="nc" id="L107">                });</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (CollectionUtils.isNotEmpty(newMemberAddList)) {</span>
+<span class="nc" id="L109">          memberOperationMap.put(JsonKey.ADD, newMemberAddList);</span>
+        } else {
+          // If records are in DB and newMemberAddList is empty, means all members to add are
+          // already existing
+<span class="nc" id="L113">          memberOperationMap.put(JsonKey.ADD, new ArrayList&lt;Map&lt;String, Object&gt;&gt;());</span>
+        }
+      }
+    }
+<span class="nc" id="L117">  }</span>
+
+  public void validateEditMembers(
+      Map memberOperationMap,
+      List&lt;MemberResponse&gt; membersInDB,
+      List&lt;Map&lt;String, String&gt;&gt; errorList) {
+<span class="nc" id="L123">    List&lt;Map&lt;String, Object&gt;&gt; memberEditList =</span>
+<span class="nc" id="L124">        (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.EDIT);</span>
+<span class="nc" id="L125">    List&lt;Map&lt;String, Object&gt;&gt; newMemberEditList = new ArrayList&lt;Map&lt;String, Object&gt;&gt;();</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(memberEditList)) {</span>
+      // Check if members in edit request is not existing, add errors
+<span class="nc bnc" id="L128" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(membersInDB)) {</span>
+<span class="nc" id="L129">        memberEditList</span>
+<span class="nc" id="L130">            .stream()</span>
+<span class="nc" id="L131">            .forEach(</span>
+                e -&gt; {
+<span class="nc" id="L133">                  if (membersInDB</span>
+<span class="nc" id="L134">                          .stream()</span>
+<span class="nc" id="L135">                          .filter(d -&gt; d.getUserId().equals(e.get(JsonKey.USER_ID)))</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                          .count()</span>
+                      &lt; 1) {
+<span class="nc" id="L138">                    Map errorMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L139">                    errorMap.put(JsonKey.USER_ID, e.get(JsonKey.USER_ID));</span>
+<span class="nc" id="L140">                    errorMap.put(JsonKey.ERROR_CODE, JsonKey.MEMBER_NOT_FOUND);</span>
+<span class="nc" id="L141">                    errorList.add(errorMap);</span>
+<span class="nc" id="L142">                  } else {</span>
+                    // Remove duplicates in new list
+<span class="nc" id="L144">                    if (!newMemberEditList</span>
+<span class="nc" id="L145">                        .stream()</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">                        .anyMatch(mi -&gt; mi.get(JsonKey.USER_ID).equals(e.get(JsonKey.USER_ID)))) {</span>
+<span class="nc" id="L147">                      newMemberEditList.add(e);</span>
+                    }
+                  }
+<span class="nc" id="L150">                });</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        if (CollectionUtils.isNotEmpty(newMemberEditList)) {</span>
+<span class="nc" id="L152">          memberOperationMap.put(JsonKey.EDIT, newMemberEditList);</span>
+        } else {
+          // If records are in DB and newMemberEditList is empty, means all new members are not
+          // existing
+<span class="nc" id="L156">          memberOperationMap.put(JsonKey.EDIT, new ArrayList&lt;Map&lt;String, Object&gt;&gt;());</span>
+        }
+      }
+    }
+<span class="nc" id="L160">  }</span>
+
+  public void validateRemoveMembers(
+      Map memberOperationMap,
+      List&lt;MemberResponse&gt; membersInDB,
+      List&lt;Map&lt;String, String&gt;&gt; errorList) {
+<span class="nc" id="L166">    List&lt;String&gt; memberRemoveList = (List&lt;String&gt;) memberOperationMap.get(JsonKey.REMOVE);</span>
+<span class="nc" id="L167">    List&lt;String&gt; newMemberRemoveList = new ArrayList&lt;String&gt;();</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(memberRemoveList)) {</span>
+      // Check if members in remove request is not existing, add to validation error
+      // If existing, then add to new remove list
+<span class="nc bnc" id="L171" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(membersInDB)) {</span>
+<span class="nc" id="L172">        memberRemoveList</span>
+<span class="nc" id="L173">            .stream()</span>
+<span class="nc" id="L174">            .forEach(</span>
+                e -&gt; {
+<span class="nc bnc" id="L176" title="All 2 branches missed.">                  if (membersInDB.stream().filter(d -&gt; d.getUserId().equals(e)).count() &lt; 1) {</span>
+<span class="nc" id="L177">                    Map errorMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L178">                    errorMap.put(JsonKey.USER_ID, e);</span>
+<span class="nc" id="L179">                    errorMap.put(JsonKey.ERROR_CODE, JsonKey.MEMBER_NOT_FOUND);</span>
+<span class="nc" id="L180">                    errorList.add(errorMap);</span>
+<span class="nc" id="L181">                  } else {</span>
+                    // Remove duplicates
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                    if (!newMemberRemoveList.stream().anyMatch(mi -&gt; mi.equals(e))) {</span>
+<span class="nc" id="L184">                      newMemberRemoveList.add(e);</span>
+                    }
+                  }
+<span class="nc" id="L187">                });</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">        if (CollectionUtils.isNotEmpty(newMemberRemoveList)) {</span>
+<span class="nc" id="L189">          memberOperationMap.put(JsonKey.REMOVE, newMemberRemoveList);</span>
+        } else {
+          // If records are in DB and newMemberRemoveList is empty, means nothing to remove
+<span class="nc" id="L192">          memberOperationMap.put(JsonKey.REMOVE, new ArrayList&lt;Map&lt;String, Object&gt;&gt;());</span>
+        }
+      }
+    }
+<span class="nc" id="L196">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ApplicationStart.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-service</a> &gt; <a href="index.source.html" class="el_package">utils</a> &gt; <span class="el_source">ApplicationStart.java</span></div><h1>ApplicationStart.java</h1><pre class="source lang-java linenums">package utils;
+
+import java.util.concurrent.CompletableFuture;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import org.sunbird.Application;
+import org.sunbird.auth.verifier.KeyManager;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.util.*;
+import play.api.Environment;
+import play.api.inject.ApplicationLifecycle;
+
+/**
+ * This class will be called after on application startup. only one instance of this class will be
+ * created. StartModule class has responsibility to eager load this class.
+ */
+@Singleton
+public class ApplicationStart {
+  /**
+   * All one time initialization which required during server startup will fall here.
+   *
+   * @param lifecycle ApplicationLifecycle
+   */
+  @Inject
+  public ApplicationStart(ApplicationLifecycle lifecycle, Environment environment)
+<span class="nc" id="L26">      throws BaseException {</span>
+    // instantiate actor system and initialize all the actors
+<span class="nc" id="L28">    Application.getInstance().init();</span>
+<span class="nc" id="L29">    setEnvironment(environment);</span>
+<span class="nc" id="L30">    checkCassandraConnections();</span>
+<span class="nc" id="L31">    HttpClientUtil.getInstance();</span>
+<span class="nc" id="L32">    ActivityConfigReader.initialize();</span>
+<span class="nc" id="L33">    SystemConfigUtil.init();</span>
+    // Shut-down hook
+<span class="nc" id="L35">    lifecycle.addStopHook(</span>
+        () -&gt; {
+<span class="nc" id="L37">          return CompletableFuture.completedFuture(null);</span>
+        });
+<span class="nc" id="L39">    KeyManager.init();</span>
+<span class="nc" id="L40">  }</span>
+
+  private void setEnvironment(Environment environment) {
+    // TODO: Any env specific work.
+<span class="nc bnc" id="L44" title="All 2 branches missed.">    if (environment.asJava().isDev()) {</span>
+      // env = ProjectUtil.Environment.dev;
+<span class="nc bnc" id="L46" title="All 2 branches missed.">    } else if (environment.asJava().isTest()) {</span>
+      // env = ProjectUtil.Environment.qa;
+    } else {
+      // env = ProjectUtil.Environment.prod;
+    }
+<span class="nc" id="L51">  }</span>
+
+  private static void checkCassandraConnections() throws BaseException {
+<span class="nc" id="L54">    DBUtil.checkCassandraDbConnections();</span>
+<span class="nc" id="L55">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

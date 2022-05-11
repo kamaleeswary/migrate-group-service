@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GroupServiceImpl.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.service</a> &gt; <span class="el_source">GroupServiceImpl.java</span></div><h1>GroupServiceImpl.java</h1><pre class="source lang-java linenums">package org.sunbird.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.text.MessageFormat;
+import java.util.*;
+import java.util.stream.Collectors;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.common.util.NotificationType;
+import org.sunbird.dao.GroupDao;
+import org.sunbird.dao.GroupDaoImpl;
+import org.sunbird.dao.MemberDao;
+import org.sunbird.dao.MemberDaoImpl;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.exception.ValidationException;
+import org.sunbird.common.message.IResponseMessage;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.models.Group;
+import org.sunbird.models.GroupResponse;
+import org.sunbird.models.Member;
+import org.sunbird.models.MemberResponse;
+import org.sunbird.common.response.Response;
+import org.sunbird.notifications.NotificationManager;
+import org.sunbird.util.*;
+import org.sunbird.common.util.JsonKey;
+
+<span class="nc" id="L30">public class GroupServiceImpl implements GroupService {</span>
+<span class="nc" id="L31">  private static LoggerUtil logger = new LoggerUtil(GroupServiceImpl.class);</span>
+
+<span class="nc" id="L33">  private static GroupDao groupDao = GroupDaoImpl.getInstance();</span>
+<span class="nc" id="L34">  private static MemberService memberService = new MemberServiceImpl();</span>
+<span class="nc" id="L35">  private static ObjectMapper objectMapper = new ObjectMapper();</span>
+<span class="nc" id="L36">  private static MemberDao memberDao = MemberDaoImpl.getInstance();</span>
+
+  @Override
+  public String createGroup(Group groupObj, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L40">    String groupId = groupDao.createGroup(groupObj, reqContext);</span>
+<span class="nc" id="L41">    return groupId;</span>
+  }
+
+  public GroupResponse readGroupWithActivities(String groupId, Map&lt;String, Object&gt; reqContext)
+      throws Exception {
+<span class="nc" id="L46">    Map&lt;String, Object&gt; dbResGroup = readGroup(groupId, reqContext);</span>
+<span class="nc" id="L47">    logger.info(reqContext,&quot;readGroupActivities started&quot;);</span>
+<span class="nc" id="L48">    readGroupActivities(dbResGroup, reqContext);</span>
+<span class="nc" id="L49">    logger.info(reqContext,&quot;readGroupActivities ended&quot;);</span>
+<span class="nc" id="L50">    return JsonUtils.convert(dbResGroup, GroupResponse.class);</span>
+  }
+
+  public Map&lt;String, Object&gt; readGroup(String groupId, Map&lt;String,Object&gt; reqContext) throws BaseException {
+    Map&lt;String, Object&gt; dbResGroup;
+<span class="nc" id="L55">    Response responseObj = groupDao.readGroup(groupId, reqContext);</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">    if (null != responseObj &amp;&amp; null != responseObj.getResult()) {</span>
+<span class="nc" id="L57">      List&lt;Map&lt;String, Object&gt;&gt; dbGroupDetails =</span>
+<span class="nc" id="L58">          (List&lt;Map&lt;String, Object&gt;&gt;) responseObj.getResult().get(JsonKey.RESPONSE);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(dbGroupDetails)) {</span>
+<span class="nc" id="L60">        logger.info(reqContext, MessageFormat.format(&quot;Group details fetched for groupId :{0}&quot;, groupId));</span>
+<span class="nc" id="L61">        dbResGroup = dbGroupDetails.get(0);</span>
+        // update createdOn, updatedOn format to utc &quot;yyyy-MM-dd HH:mm:ss:SSSZ
+<span class="nc" id="L63">        dbResGroup.put(</span>
+            JsonKey.CREATED_ON,
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            dbResGroup.get(JsonKey.CREATED_ON) != null</span>
+<span class="nc" id="L66">                ? GroupUtil.convertDateToUTC((Date) dbResGroup.get(JsonKey.CREATED_ON))</span>
+<span class="nc" id="L67">                : dbResGroup.get(JsonKey.CREATED_ON));</span>
+
+<span class="nc" id="L69">        dbResGroup.put(</span>
+            JsonKey.UPDATED_ON,
+<span class="nc bnc" id="L71" title="All 2 branches missed.">            dbResGroup.get(JsonKey.UPDATED_ON) != null</span>
+<span class="nc" id="L72">                ? GroupUtil.convertDateToUTC((Date) dbResGroup.get(JsonKey.UPDATED_ON))</span>
+<span class="nc" id="L73">                : dbResGroup.get(JsonKey.UPDATED_ON));</span>
+
+<span class="nc" id="L75">        return dbResGroup;</span>
+
+      } else {
+<span class="nc" id="L78">        throw new ValidationException.GroupNotFound(groupId);</span>
+      }
+    } else {
+<span class="nc" id="L81">      throw new ValidationException.GroupNotFound(groupId);</span>
+    }
+  }
+
+  @Override
+  public void readGroupActivities(Map&lt;String, Object&gt; dbResGroup, Map&lt;String, Object&gt; reqContext) {
+<span class="nc" id="L87">    List&lt;Map&lt;String, Object&gt;&gt; dbResActivities =</span>
+<span class="nc" id="L88">        (List&lt;Map&lt;String, Object&gt;&gt;) dbResGroup.get(JsonKey.ACTIVITIES);</span>
+<span class="nc bnc" id="L89" title="All 4 branches missed.">    if (dbResActivities != null &amp;&amp; !dbResActivities.isEmpty()) {</span>
+<span class="nc" id="L90">      addActivityInfoDetails(dbResActivities, reqContext);</span>
+    }
+<span class="nc" id="L92">  }</span>
+
+  /**
+   * Merge Activity Info to activities detail
+   *
+   * @param dbResActivities
+   */
+  private void addActivityInfoDetails(
+      List&lt;Map&lt;String, Object&gt;&gt; dbResActivities, Map&lt;String, Object&gt; reqContext) {
+<span class="nc" id="L101">    logger.info(reqContext,MessageFormat.format(&quot;Fetching activityInfo for activity count: {0}&quot;, dbResActivities.size()));</span>
+<span class="nc" id="L102">    Map&lt;SearchServiceUtil, Map&lt;String, String&gt;&gt; idClassTypeMap =</span>
+<span class="nc" id="L103">        GroupUtil.groupActivityIdsBySearchUtilClass(dbResActivities,reqContext);</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">    for (Map.Entry&lt;SearchServiceUtil, Map&lt;String, String&gt;&gt; itr : idClassTypeMap.entrySet()) {</span>
+      try {
+<span class="nc" id="L106">        SearchServiceUtil searchServiceUtil = itr.getKey();</span>
+<span class="nc" id="L107">        List&lt;String&gt; fields = ActivityConfigReader.getFieldsLists(searchServiceUtil);</span>
+<span class="nc" id="L108">        Map&lt;String, Map&lt;String, Object&gt;&gt; activityInfoMap =</span>
+<span class="nc" id="L109">            searchServiceUtil.searchContent(itr.getValue(), fields, reqContext);</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        for (Map&lt;String, Object&gt; activity : dbResActivities) {</span>
+<span class="nc" id="L111">          String activityKey = (String) activity.get(JsonKey.TYPE) + activity.get(JsonKey.ID);</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">          if (activityInfoMap.containsKey(activityKey)) {</span>
+<span class="nc" id="L113">            activity.put(JsonKey.ACTIVITY_INFO, activityInfoMap.get(activityKey));</span>
+          }
+<span class="nc" id="L115">        }</span>
+<span class="nc" id="L116">      } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L117">        logger.error(reqContext,&quot;No Service Class Configured&quot;);</span>
+<span class="nc" id="L118">      }</span>
+<span class="nc" id="L119">    }</span>
+<span class="nc" id="L120">  }</span>
+
+  /**
+   * TODO: Extraction of specific fields needs to be added This method will search group details
+   * based on filters and return all group details as success response or throw BaseException.
+   *
+   * @param searchFilter .
+   * @return dbGroupDetails.
+   */
+  @Override
+  public List&lt;GroupResponse&gt; searchGroup(Map&lt;String, Object&gt; searchFilter, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L131">    List&lt;GroupResponse&gt; groups = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L132">    String userId = (String) searchFilter.get(JsonKey.USER_ID);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">    if (StringUtils.isNotBlank(userId)) {</span>
+<span class="nc" id="L134">      List&lt;String&gt; groupIds = fetchAllGroupIdsByUserId(userId, reqContext);</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">      if (!groupIds.isEmpty()) {</span>
+<span class="nc" id="L136">        List&lt;Map&lt;String, Object&gt;&gt; dbResMembers = memberService.fetchGroupByUser(groupIds, userId, reqContext);</span>
+<span class="nc" id="L137">        logger.info(reqContext,MessageFormat.format(&quot;group count {0} for userId {1}&quot;, dbResMembers.size(), userId));</span>
+<span class="nc" id="L138">        Map&lt;String, Map&lt;String, Object&gt;&gt; groupMemberRelationMap =</span>
+<span class="nc" id="L139">            getGroupDetailsMapByUser(dbResMembers);</span>
+<span class="nc" id="L140">        groups = readGroupDetailsByGroupIds(groupIds, reqContext);</span>
+<span class="nc" id="L141">        GroupUtil.updateGroupDetails(groups, groupMemberRelationMap);</span>
+      }
+
+<span class="nc" id="L144">    } else {</span>
+<span class="nc" id="L145">      String errorMsg =&quot;Bad Request UserId is Mandatory&quot;;</span>
+<span class="nc" id="L146">      logger.error(reqContext,errorMsg);</span>
+<span class="nc" id="L147">      throw new BaseException(</span>
+<span class="nc" id="L148">          ResponseCode.GS_LST02.getErrorCode(),</span>
+             errorMsg,
+<span class="nc" id="L150">          ResponseCode.BAD_REQUEST.getCode());</span>
+    }
+<span class="nc" id="L152">    return groups;</span>
+  }
+
+  private Map&lt;String, Map&lt;String, Object&gt;&gt; getGroupDetailsMapByUser(
+      List&lt;Map&lt;String, Object&gt;&gt; dbResMembers) {
+<span class="nc" id="L157">    Map&lt;String, Map&lt;String, Object&gt;&gt; groupDetailMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L158">    dbResMembers.forEach(</span>
+        map -&gt; {
+<span class="nc" id="L160">          Map&lt;String, Object&gt; groupDetails = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L161">          groupDetails.put(JsonKey.ROLE, map.get(JsonKey.ROLE));</span>
+<span class="nc" id="L162">          groupDetails.put(JsonKey.VISITED, map.get(JsonKey.VISITED));</span>
+<span class="nc" id="L163">          groupDetailMap.put((String) map.get(JsonKey.GROUP_ID), groupDetails);</span>
+<span class="nc" id="L164">        });</span>
+<span class="nc" id="L165">    return groupDetailMap;</span>
+  }
+
+  /**
+   * Get all groupsIds By userIds
+   *
+   * @param userId
+   * @return groupIdsList
+   * @throws BaseException
+   */
+  private List&lt;String&gt; fetchAllGroupIdsByUserId(String userId, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L176">    Response groupIdsResponse = memberDao.readGroupIdsByUserId(userId, reqContext);</span>
+<span class="nc bnc" id="L177" title="All 4 branches missed.">    if (null != groupIdsResponse &amp;&amp; null != groupIdsResponse.getResult()) {</span>
+<span class="nc" id="L178">      List&lt;Map&lt;String, Object&gt;&gt; dbResGroupIds =</span>
+<span class="nc" id="L179">          (List&lt;Map&lt;String, Object&gt;&gt;) groupIdsResponse.getResult().get(JsonKey.RESPONSE);</span>
+<span class="nc bnc" id="L180" title="All 4 branches missed.">      if (null != dbResGroupIds &amp;&amp; !dbResGroupIds.isEmpty()) {</span>
+<span class="nc" id="L181">        Set&lt;String&gt; groupIdsSet = (Set&lt;String&gt;) dbResGroupIds.get(0).get(JsonKey.GROUP_ID);</span>
+<span class="nc" id="L182">        logger.info(reqContext,MessageFormat.format(&quot;UserId {0} has groupIds {1}&quot;, userId, groupIdsSet.size()));</span>
+<span class="nc" id="L183">        return new ArrayList&lt;&gt;(groupIdsSet);</span>
+      }
+    }
+<span class="nc" id="L186">    return new ArrayList&lt;&gt;();</span>
+  }
+
+  /**
+   * Filter Only Active Groups
+   *
+   * @param dbResGroupIds
+   * @return
+   */
+  private List&lt;Map&lt;String, Object&gt;&gt; filterOutInActiveGroups(
+      List&lt;Map&lt;String, Object&gt;&gt; dbResGroupIds) {
+<span class="nc" id="L197">    List&lt;Map&lt;String, Object&gt;&gt; activeGroupLists = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L198">    dbResGroupIds.forEach(</span>
+        map -&gt; {
+<span class="nc bnc" id="L200" title="All 2 branches missed.">          if (JsonKey.ACTIVE.equals(map.get(JsonKey.STATUS))) {</span>
+<span class="nc" id="L201">            activeGroupLists.add(map);</span>
+          }
+<span class="nc" id="L203">        });</span>
+<span class="nc" id="L204">    return activeGroupLists;</span>
+  }
+
+  /**
+   * Read groups details based on group Ids
+   *
+   * @param groupIds
+   * @return
+   * @throws BaseException
+   */
+  private List&lt;GroupResponse&gt; readGroupDetailsByGroupIds(List&lt;String&gt; groupIds, Map&lt;String,Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L216">    List&lt;GroupResponse&gt; groups = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L217">    Response response = groupDao.readGroups(groupIds, reqContext);</span>
+<span class="nc bnc" id="L218" title="All 4 branches missed.">    if (null != response &amp;&amp; null != response.getResult()) {</span>
+<span class="nc" id="L219">      List&lt;Map&lt;String, Object&gt;&gt; dbGroupDetails =</span>
+<span class="nc" id="L220">          (List&lt;Map&lt;String, Object&gt;&gt;) response.getResult().get(JsonKey.RESPONSE);</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">      if (null != dbGroupDetails) {</span>
+<span class="nc" id="L222">        logger.info(reqContext,MessageFormat.format(&quot;Group details fetched - count : {0} &quot;, dbGroupDetails.size()));</span>
+<span class="nc" id="L223">        dbGroupDetails.forEach(</span>
+            map -&gt; {
+<span class="nc" id="L225">              map.remove(JsonKey.ACTIVITIES);</span>
+<span class="nc" id="L226">              Group group = objectMapper.convertValue(map, Group.class);</span>
+<span class="nc" id="L227">              GroupResponse groupResponse = createGroupResponseObj(group);</span>
+<span class="nc" id="L228">              groups.add(groupResponse);</span>
+<span class="nc" id="L229">            });</span>
+      }
+    }
+<span class="nc" id="L232">    return groups;</span>
+  }
+
+  @Override
+  public Response updateGroup(Group groupObj, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L237">    return groupDao.updateGroup(groupObj, reqContext);</span>
+  }
+
+  @Override
+  public Response deleteGroup(String groupId, List&lt;MemberResponse&gt; members, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L242">    Response responseObj = groupDao.deleteGroup(groupId, reqContext);</span>
+    // Remove member mapping to the deleted group
+<span class="nc bnc" id="L244" title="All 2 branches missed.">    if (null != responseObj) {</span>
+      // Create member list
+<span class="nc" id="L246">      List&lt;String&gt; memberIds = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L247">      List&lt;Member&gt; memberList = createDeleteMemberList(members, memberIds);</span>
+<span class="nc" id="L248">      List&lt;Map&lt;String, Object&gt;&gt; dbResGroupIds = memberService.getGroupIdsforUserIds(memberIds, reqContext);</span>
+<span class="nc" id="L249">      memberService.removeGroupInUserGroup(memberList, dbResGroupIds, reqContext);</span>
+<span class="nc" id="L250">      memberService.deleteGroupMembers(groupId, memberIds, reqContext);</span>
+<span class="nc" id="L251">      return responseObj;</span>
+    }
+
+<span class="nc" id="L254">    logger.error(reqContext,MessageFormat.format(&quot;Error while deleting group {0}&quot;, groupId));</span>
+<span class="nc" id="L255">    throw new BaseException(IResponseMessage.SERVER_ERROR, IResponseMessage.INTERNAL_ERROR);</span>
+  }
+
+
+
+  private List&lt;Member&gt; createDeleteMemberList(
+      List&lt;MemberResponse&gt; members, List&lt;String&gt; memberIds) {
+<span class="nc" id="L262">    List&lt;Member&gt; memberList = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">    for (MemberResponse member : members) {</span>
+<span class="nc" id="L264">      Member memberObj = new Member();</span>
+<span class="nc" id="L265">      memberObj.setUserId(member.getUserId());</span>
+<span class="nc" id="L266">      memberObj.setGroupId(member.getGroupId());</span>
+<span class="nc" id="L267">      memberList.add(memberObj);</span>
+<span class="nc" id="L268">      memberIds.add(member.getUserId());</span>
+<span class="nc" id="L269">    }</span>
+<span class="nc" id="L270">    return memberList;</span>
+  }
+
+  private GroupResponse createGroupResponseObj(Group group) {
+<span class="nc" id="L274">    GroupResponse groupResponse = new GroupResponse();</span>
+<span class="nc" id="L275">    groupResponse.setId(group.getId());</span>
+<span class="nc" id="L276">    groupResponse.setDescription(group.getDescription());</span>
+<span class="nc" id="L277">    groupResponse.setName(group.getName());</span>
+<span class="nc" id="L278">    groupResponse.setStatus(group.getStatus());</span>
+<span class="nc" id="L279">    groupResponse.setMembershipType(group.getMembershipType());</span>
+<span class="nc" id="L280">    groupResponse.setActivities(group.getActivities());</span>
+<span class="nc" id="L281">    groupResponse.setCreatedBy(group.getCreatedBy());</span>
+<span class="nc" id="L282">    groupResponse.setUpdatedBy(group.getUpdatedBy());</span>
+<span class="nc" id="L283">    groupResponse.setCreatedOn(</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        group.getCreatedOn() != null</span>
+<span class="nc" id="L285">            ? GroupUtil.convertTimestampToUTC(group.getCreatedOn().getTime())</span>
+<span class="nc" id="L286">            : null);</span>
+<span class="nc" id="L287">    groupResponse.setUpdatedOn(</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">        group.getUpdatedOn() != null</span>
+<span class="nc" id="L289">            ? GroupUtil.convertTimestampToUTC(group.getUpdatedOn().getTime())</span>
+<span class="nc" id="L290">            : null);</span>
+<span class="nc" id="L291">    return groupResponse;</span>
+  }
+
+  // TODO should be private function : break into 2 functions add and remove
+  @Override
+  public List&lt;Map&lt;String, Object&gt;&gt; handleActivityOperations(
+      String groupId, Map&lt;String, Object&gt; activityOperationMap, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L298">    List&lt;Map&lt;String, Object&gt;&gt; activityAddList =</span>
+<span class="nc" id="L299">        (List&lt;Map&lt;String, Object&gt;&gt;) activityOperationMap.get(JsonKey.ADD);</span>
+<span class="nc" id="L300">    List&lt;String&gt; activityRemoveList = (List&lt;String&gt;) activityOperationMap.get(JsonKey.REMOVE);</span>
+
+    // Fetching the activities from DB
+<span class="nc" id="L303">    List&lt;Map&lt;String, Object&gt;&gt; dbActivityList = readActivityFromDb(groupId, reqContext);</span>
+
+<span class="nc bnc" id="L305" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(activityAddList)) {</span>
+      // Check if activities in add request is already existing, if not append
+<span class="nc" id="L307">      final List&lt;Map&lt;String, Object&gt;&gt; addDbActivityList = dbActivityList;</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(addDbActivityList)) {</span>
+<span class="nc" id="L309">        List&lt;Map&lt;String, Object&gt;&gt; unavailable =</span>
+            activityAddList
+<span class="nc" id="L311">                .stream()</span>
+<span class="nc" id="L312">                .filter(</span>
+                    e -&gt;
+<span class="nc" id="L314">                        (addDbActivityList</span>
+<span class="nc" id="L315">                                .stream()</span>
+<span class="nc" id="L316">                                .filter(d -&gt; d.get(&quot;id&quot;).equals(e.get(&quot;id&quot;)))</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">                                .count())</span>
+                            &lt; 1)
+<span class="nc" id="L319">                .collect(Collectors.toList());</span>
+<span class="nc" id="L320">        dbActivityList.addAll(unavailable);</span>
+<span class="nc" id="L321">      } else {</span>
+        // If no activity in DB, assign the activities from request
+<span class="nc" id="L323">        dbActivityList = new ArrayList&lt;&gt;(activityAddList);</span>
+      }
+    }
+
+    // Remove activities in request from finalist
+<span class="nc" id="L328">    List&lt;Map&lt;String, Object&gt;&gt; finalList = dbActivityList;</span>
+<span class="nc bnc" id="L329" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(activityRemoveList)</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        &amp;&amp; CollectionUtils.isNotEmpty(dbActivityList)) {</span>
+<span class="nc" id="L331">      finalList =</span>
+          dbActivityList
+<span class="nc" id="L333">              .stream()</span>
+<span class="nc" id="L334">              .filter(</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">                  e -&gt; (activityRemoveList.stream().filter(d -&gt; d.equals(e.get(&quot;id&quot;))).count()) &lt; 1)</span>
+<span class="nc" id="L336">              .collect(Collectors.toList());</span>
+    }
+<span class="nc" id="L338">    return finalList;</span>
+  }
+
+  private List&lt;Map&lt;String, Object&gt;&gt; readActivityFromDb(String groupId, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L342">    List&lt;Map&lt;String, Object&gt;&gt; dbActivityList = null;</span>
+<span class="nc" id="L343">    Response responseObj = groupDao.readGroup(groupId, reqContext);</span>
+<span class="nc bnc" id="L344" title="All 4 branches missed.">    if (null != responseObj &amp;&amp; MapUtils.isNotEmpty(responseObj.getResult())) {</span>
+<span class="nc" id="L345">      List&lt;Map&lt;String, Object&gt;&gt; groupDetails =</span>
+<span class="nc" id="L346">          (List&lt;Map&lt;String, Object&gt;&gt;) responseObj.getResult().get(JsonKey.RESPONSE);</span>
+<span class="nc bnc" id="L347" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(groupDetails)) {</span>
+<span class="nc" id="L348">        Map&lt;String, Object&gt; dbResGroup = groupDetails.get(0);</span>
+<span class="nc bnc" id="L349" title="All 2 branches missed.">        if (StringUtils.isNotBlank((String) dbResGroup.get(JsonKey.ID))</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">            &amp;&amp; StringUtils.equals(groupId, (String) dbResGroup.get(JsonKey.ID)))</span>
+<span class="nc" id="L351">          dbActivityList = (List&lt;Map&lt;String, Object&gt;&gt;) dbResGroup.get(JsonKey.ACTIVITIES);</span>
+<span class="nc" id="L352">      } else {</span>
+<span class="nc" id="L353">        throw new ValidationException.GroupNotFound(groupId);</span>
+      }
+    }
+<span class="nc" id="L356">    return dbActivityList;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

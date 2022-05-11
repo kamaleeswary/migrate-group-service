@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>UserServiceImpl.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.service</a> &gt; <span class="el_source">UserServiceImpl.java</span></div><h1>UserServiceImpl.java</h1><pre class="source lang-java linenums">package org.sunbird.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.message.IResponseMessage;
+import org.sunbird.models.SearchRequest;
+import org.sunbird.common.response.Response;
+import org.sunbird.util.HttpClientUtil;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.LoggerUtil;
+import org.sunbird.util.helper.PropertiesCache;
+
+<span class="nc" id="L19">public class UserServiceImpl implements UserService {</span>
+
+<span class="nc" id="L21">  LoggerUtil logger = new LoggerUtil(UserServiceImpl.class);</span>
+
+  private static String userServiceSearchUrl;
+  private static String userServiceBaseUrl;
+  private static String userServiceSystemSettingUrl;
+  private static String userServiceOrgReadUrl;
+
+<span class="nc" id="L28">  private static UserService userService = null;</span>
+<span class="nc" id="L29">  private static ObjectMapper objectMapper = new ObjectMapper();</span>
+
+  static {
+<span class="nc" id="L32">    userServiceBaseUrl = System.getenv(JsonKey.USER_SERVICE_BASE_URL);</span>
+<span class="nc" id="L33">    userServiceSearchUrl = System.getenv(JsonKey.USER_SERVICE_SEARCH_URL);</span>
+<span class="nc" id="L34">    userServiceSystemSettingUrl = System.getenv(JsonKey.USER_SERVICE_SYSTEM_SETTING_URL);</span>
+<span class="nc" id="L35">    userServiceOrgReadUrl = System.getenv(JsonKey.USER_SERVICE_ORG_READ_URL);</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">    if (StringUtils.isBlank(userServiceBaseUrl)) {</span>
+<span class="nc" id="L37">      userServiceBaseUrl = PropertiesCache.getInstance().getProperty(JsonKey.USER_SERVICE_BASE_URL);</span>
+    }
+<span class="nc bnc" id="L39" title="All 2 branches missed.">    if (StringUtils.isBlank(userServiceSearchUrl)) {</span>
+      userServiceSearchUrl =
+<span class="nc" id="L41">          PropertiesCache.getInstance().getProperty(JsonKey.USER_SERVICE_SEARCH_URL);</span>
+    }
+<span class="nc bnc" id="L43" title="All 2 branches missed.">    if (StringUtils.isBlank(userServiceSystemSettingUrl)) {</span>
+      userServiceSystemSettingUrl =
+<span class="nc" id="L45">          PropertiesCache.getInstance().getProperty(JsonKey.USER_SERVICE_SYSTEM_SETTING_URL);</span>
+    }
+<span class="nc bnc" id="L47" title="All 2 branches missed.">    if (StringUtils.isBlank(userServiceOrgReadUrl)) {</span>
+      userServiceOrgReadUrl =
+<span class="nc" id="L49">          PropertiesCache.getInstance().getProperty(JsonKey.USER_SERVICE_ORG_READ_URL);</span>
+    }
+<span class="nc" id="L51">  }</span>
+
+  public static UserService getInstance() {
+<span class="nc bnc" id="L54" title="All 2 branches missed.">    if (userService == null) {</span>
+<span class="nc" id="L55">      userService = new UserServiceImpl();</span>
+    }
+<span class="nc" id="L57">    return userService;</span>
+  }
+
+  /**
+   * Fetch user details with user ids from Platform service
+   *
+   * @param userIds
+   * @return
+   * @throws BaseException
+   */
+  @Override
+  public Response searchUserByIds(List&lt;String&gt; userIds, Map&lt;String, Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L70">    Response responseObj = new Response();</span>
+<span class="nc" id="L71">    Map&lt;String, String&gt; requestHeader = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L72">    getUpdatedRequestHeader(requestHeader, reqContext);</span>
+    try {
+<span class="nc" id="L74">      SearchRequest searchRequest = createUserSearchRequest(userIds);</span>
+<span class="nc" id="L75">      String searchJsonStrReq = objectMapper.writeValueAsString(searchRequest);</span>
+<span class="nc" id="L76">      String response =</span>
+<span class="nc" id="L77">          HttpClientUtil.post(</span>
+              userServiceBaseUrl + userServiceSearchUrl, searchJsonStrReq, requestHeader,reqContext);
+<span class="nc" id="L79">      getResponseObject(responseObj, response, reqContext);</span>
+<span class="nc" id="L80">    } catch (JsonProcessingException ex) {</span>
+<span class="nc" id="L81">      logger.error(reqContext,&quot;Error while fetching user details through user service&quot; + ex.getMessage());</span>
+<span class="nc" id="L82">      throw new BaseException(IResponseMessage.SERVER_ERROR, IResponseMessage.INTERNAL_ERROR);</span>
+<span class="nc" id="L83">    }</span>
+<span class="nc" id="L84">    return responseObj;</span>
+  }
+
+  @Override
+  public Response getSystemSettings() throws BaseException {
+<span class="nc" id="L89">    Response responseObj = new Response();</span>
+<span class="nc" id="L90">    Map&lt;String, String&gt; requestHeader = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L91">    Map&lt;String, Object&gt; requestContext = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L92">    requestContext.put(JsonKey.X_REQUEST_ID, UUID.randomUUID().toString());</span>
+<span class="nc" id="L93">    requestContext.put(JsonKey.X_TRACE_ENABLED, &quot;false&quot;);</span>
+<span class="nc" id="L94">    getUpdatedRequestHeader(requestHeader, requestContext);</span>
+    try {
+
+<span class="nc" id="L97">      String response =</span>
+<span class="nc" id="L98">          HttpClientUtil.get(userServiceBaseUrl + userServiceSystemSettingUrl, requestHeader, requestContext);</span>
+<span class="nc" id="L99">      getResponseObject(responseObj, response,requestContext);</span>
+<span class="nc" id="L100">    } catch (JsonProcessingException ex) {</span>
+<span class="nc" id="L101">      logger.error(requestContext, &quot;Error while fetching system setting through user service&quot; + ex.getMessage());</span>
+<span class="nc" id="L102">      throw new BaseException(IResponseMessage.SERVER_ERROR, IResponseMessage.INTERNAL_ERROR);</span>
+<span class="nc" id="L103">    }</span>
+<span class="nc" id="L104">    return responseObj;</span>
+  }
+
+  @Override
+  public Response getOrganisationDetails(String orgId) throws BaseException {
+<span class="nc" id="L109">    Response responseObj = new Response();</span>
+<span class="nc" id="L110">    SearchRequest readRequest = new SearchRequest();</span>
+<span class="nc" id="L111">    readRequest.getRequest().put(JsonKey.ORGANISATION_ID, orgId);</span>
+<span class="nc" id="L112">    Map&lt;String, String&gt; requestHeader = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L113">    Map&lt;String, Object&gt; requestContext = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L114">    requestContext.put(JsonKey.X_REQUEST_ID, UUID.randomUUID().toString());</span>
+<span class="nc" id="L115">    requestContext.put(JsonKey.X_TRACE_ENABLED, &quot;false&quot;);</span>
+<span class="nc" id="L116">    getUpdatedRequestHeader(requestHeader, requestContext);</span>
+    try {
+<span class="nc" id="L118">      String response =</span>
+<span class="nc" id="L119">          HttpClientUtil.post(</span>
+              userServiceBaseUrl + userServiceOrgReadUrl,
+<span class="nc" id="L121">              objectMapper.writeValueAsString(readRequest),</span>
+              requestHeader,requestContext);
+<span class="nc" id="L123">      getResponseObject(responseObj, response, requestContext);</span>
+<span class="nc" id="L124">    } catch (Exception ex) {</span>
+<span class="nc" id="L125">      logger.error(requestContext,&quot;Error while fetching org details through user service&quot; + ex.getMessage());</span>
+<span class="nc" id="L126">      throw new BaseException(IResponseMessage.SERVER_ERROR, IResponseMessage.INTERNAL_ERROR);</span>
+<span class="nc" id="L127">    }</span>
+<span class="nc" id="L128">    return responseObj;</span>
+  }
+
+  private void getResponseObject(Response responseObj, String response, Map&lt;String,Object&gt; reqContext)
+      throws JsonProcessingException {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">    if (StringUtils.isNotBlank(response)) {</span>
+<span class="nc" id="L134">      Map&lt;String, Object&gt; responseMap = objectMapper.readValue(response, Map.class);</span>
+<span class="nc" id="L135">      responseObj.putAll((Map&lt;String, Object&gt;) responseMap.get(JsonKey.RESULT));</span>
+<span class="nc" id="L136">    } else {</span>
+<span class="nc" id="L137">      logger.error(reqContext,&quot;Empty response from the user service:&quot; + response);</span>
+    }
+<span class="nc" id="L139">  }</span>
+
+  private SearchRequest createUserSearchRequest(List&lt;String&gt; userIds) {
+<span class="nc" id="L142">    SearchRequest searchRequest = new SearchRequest();</span>
+<span class="nc" id="L143">    Map&lt;String, Object&gt; request = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L144">    Map&lt;String, Object&gt; filters = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L145">    filters.put(JsonKey.ID, userIds);</span>
+<span class="nc" id="L146">    request.put(JsonKey.FILTERS, filters);</span>
+<span class="nc" id="L147">    searchRequest.setRequest(request);</span>
+<span class="nc" id="L148">    return searchRequest;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SearchGroupActor.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.actors</a> &gt; <span class="el_source">SearchGroupActor.java</span></div><h1>SearchGroupActor.java</h1><pre class="source lang-java linenums">package org.sunbird.actors;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.actor.core.ActorConfig;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.models.GroupResponse;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.service.GroupService;
+import org.sunbird.service.GroupServiceImpl;
+import org.sunbird.util.CacheUtil;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.ExceptionHandler;
+import org.sunbird.util.JsonUtils;
+import org.sunbird.util.LoggerUtil;
+import org.sunbird.util.helper.PropertiesCache;
+
+@ActorConfig(
+  tasks = {&quot;searchGroup&quot;},
+  asyncTasks = {},
+  dispatcher = &quot;group-dispatcher&quot;
+)
+<span class="nc" id="L32">public class SearchGroupActor extends BaseActor {</span>
+<span class="nc" id="L33">  private LoggerUtil logger = new LoggerUtil(SearchGroupActor.class);</span>
+
+  @Override
+  public void onReceive(Request request) throws Throwable {
+<span class="nc" id="L37">    String operation = request.getOperation();</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">    switch (operation) {</span>
+      case &quot;searchGroup&quot;:
+<span class="nc" id="L40">        searchGroup(request);</span>
+<span class="nc" id="L41">        break;</span>
+        
+      default:
+<span class="nc" id="L44">        onReceiveUnsupportedMessage(&quot;SearchGroupActor&quot;);</span>
+        
+    }
+<span class="nc" id="L47">  }</span>
+
+  /**
+   * This method will search group related information.
+   *
+   * @param request
+   */
+  private void searchGroup(Request request) throws BaseException {
+    boolean isUseridRedisEnabled =
+<span class="nc" id="L56">        Boolean.parseBoolean(</span>
+<span class="nc" id="L57">            PropertiesCache.getInstance().getConfigValue(JsonKey.ENABLE_USERID_REDIS_CACHE));</span>
+<span class="nc" id="L58">    CacheUtil cacheUtil = new CacheUtil();</span>
+<span class="nc" id="L59">    GroupService groupService = new GroupServiceImpl();</span>
+<span class="nc" id="L60">    Map&lt;String, Object&gt; searchQueryMap = request.getRequest();</span>
+<span class="nc" id="L61">    logger.info(request.getContext(),MessageFormat.format(&quot;search group with the request/filters {0}&quot;, searchQueryMap));</span>
+<span class="nc" id="L62">    Map&lt;String, Object&gt; filterMap = (Map&lt;String, Object&gt;) searchQueryMap.get(JsonKey.FILTERS);</span>
+
+<span class="nc" id="L64">    List&lt;GroupResponse&gt; groupDetails = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L65">    String userId = (String) filterMap.get(JsonKey.USER_ID);</span>
+    try {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">      if (StringUtils.isNotBlank(userId)) {</span>
+<span class="nc" id="L68">        boolean getFromDB = true;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (isUseridRedisEnabled) {</span>
+<span class="nc" id="L70">          String groupList = cacheUtil.getCache(userId,request.getContext());</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">          if (StringUtils.isNotEmpty(groupList)) {</span>
+            try {
+<span class="nc" id="L73">              groupDetails =</span>
+<span class="nc" id="L74">                      JsonUtils.deserialize(groupList, new TypeReference&lt;List&lt;GroupResponse&gt;&gt;() {</span>
+                      });
+<span class="nc" id="L76">              getFromDB = false;</span>
+<span class="nc" id="L77">            } catch (Exception e) {</span>
+<span class="nc" id="L78">              logger.error(request.getContext(),MessageFormat.format(&quot;SearchGroupActor: Error in getting group list from Redis: {0}&quot;, e.getMessage()));</span>
+<span class="nc" id="L79">            }</span>
+          }
+        }
+<span class="nc bnc" id="L82" title="All 4 branches missed.">        if (getFromDB || CollectionUtils.isEmpty(groupDetails)) {</span>
+<span class="nc" id="L83">          logger.info(request.getContext(),&quot;/group/list cache is empty. Fetching details from DB&quot;);</span>
+<span class="nc" id="L84">          groupDetails = groupService.searchGroup(filterMap,request.getContext());</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">          if (isUseridRedisEnabled) {</span>
+<span class="nc" id="L86">            updateGroupDetailInCache(cacheUtil, groupDetails, userId, request.getContext());</span>
+          }
+        }
+<span class="nc" id="L89">      } else {</span>
+<span class="nc" id="L90">        String errorMsg =&quot;Bad Request UserId is Mandatory&quot;;</span>
+<span class="nc" id="L91">        logger.error(request.getContext(),errorMsg);</span>
+<span class="nc" id="L92">        throw new BaseException(</span>
+<span class="nc" id="L93">                ResponseCode.GS_LST02.getErrorCode(),</span>
+<span class="nc" id="L94">                ResponseCode.GS_LST02.getErrorMessage(),</span>
+<span class="nc" id="L95">                ResponseCode.BAD_REQUEST.getCode());</span>
+      }
+
+<span class="nc" id="L98">      Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L99" title="All 4 branches missed.">      if (CollectionUtils.isNotEmpty(groupDetails) &amp;&amp; groupDetails.size() &gt; 0) {</span>
+<span class="nc" id="L100">        groupDetails.sort(</span>
+                ((o1, o2) -&gt;
+<span class="nc" id="L102">                        o1.getMemberRole().compareTo(o2.getMemberRole()))); // sort group result by role</span>
+      }
+<span class="nc" id="L104">      result.put(JsonKey.GROUP, groupDetails);</span>
+<span class="nc" id="L105">      Response response = new Response(result, ResponseCode.OK.getCode());</span>
+<span class="nc" id="L106">      sender().tell(response, self());</span>
+<span class="nc" id="L107">    }catch (Exception ex){</span>
+<span class="nc" id="L108">      logger.debug(request.getContext(),MessageFormat.format(&quot;SearchGroupActor: Request: {0}&quot;,request.getRequest()));</span>
+<span class="nc" id="L109">      logger.error(request.getContext(),MessageFormat.format(&quot;SearchGroupActor: Error Msg: {0} &quot;,ex.getMessage()),ex);</span>
+<span class="nc" id="L110">      ExceptionHandler.handleExceptions(request, ex, ResponseCode.GS_LST03);</span>
+<span class="nc" id="L111">    }</span>
+<span class="nc" id="L112">  }</span>
+
+  private void updateGroupDetailInCache(CacheUtil cacheUtil, List&lt;GroupResponse&gt; groupDetails, String userId, Map&lt;String,Object&gt; reqContext) {
+    try {
+<span class="nc" id="L116">      cacheUtil.setCache(userId, JsonUtils.serialize(groupDetails), CacheUtil.userTtl);</span>
+<span class="nc" id="L117">    } catch (Exception e) {</span>
+<span class="nc" id="L118">      logger.error(reqContext,MessageFormat.format(&quot;SearchGroupActor: Error in saving group list to Redis: {0}&quot;, e.getMessage()));</span>
+<span class="nc" id="L119">    }</span>
+<span class="nc" id="L120">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

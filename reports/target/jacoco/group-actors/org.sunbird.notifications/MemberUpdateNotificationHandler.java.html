@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MemberUpdateNotificationHandler.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.notifications</a> &gt; <span class="el_source">MemberUpdateNotificationHandler.java</span></div><h1>MemberUpdateNotificationHandler.java</h1><pre class="source lang-java linenums">package org.sunbird.notifications;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.common.util.Notification;
+import org.sunbird.common.util.NotificationType;
+import org.sunbird.models.MemberResponse;
+import org.sunbird.service.GroupService;
+import org.sunbird.service.GroupServiceImpl;
+import org.sunbird.service.MemberService;
+import org.sunbird.service.MemberServiceImpl;
+import org.sunbird.util.LoggerUtil;
+
+import java.util.*;
+
+<span class="nc" id="L17">public class MemberUpdateNotificationHandler implements INotificationHandler{</span>
+<span class="nc" id="L18">    private LoggerUtil logger = new LoggerUtil(MemberUpdateNotificationHandler.class);</span>
+
+    @Override
+    public List&lt;Notification&gt; getNotificationObj(Request request, Map&lt;String,Object&gt; updatedBy) {
+<span class="nc" id="L22">        List&lt;Notification&gt; notifications = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L23">        Map&lt;String,Object&gt; reqObj = (Map&lt;String,Object&gt;)request.getRequest().get(JsonKey.REQUEST);</span>
+<span class="nc" id="L24">        Map&lt;String,Object&gt; groupDetails = (Map&lt;String, Object&gt;) request.getRequest().get(JsonKey.GROUP);</span>
+<span class="nc bnc" id="L25" title="All 2 branches missed.">        if(null != groupDetails){</span>
+<span class="nc" id="L26">            Map memberOperationMap = (Map)reqObj.get(JsonKey.MEMBERS);</span>
+            // Get Member Details of the Updated By user
+<span class="nc" id="L28">            List&lt;MemberResponse&gt; membersInDB = (List&lt;MemberResponse&gt;) request.getRequest().get(JsonKey.MEMBERS);</span>
+<span class="nc" id="L29">            Map&lt;String, Object&gt; additionalInfo = getAdditionalInfo(groupDetails);</span>
+
+<span class="nc bnc" id="L31" title="All 2 branches missed.">            if (CollectionUtils.isNotEmpty(</span>
+<span class="nc" id="L32">                    (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD))) {</span>
+<span class="nc" id="L33">                Notification notification = handleMemberAddNotifications(memberOperationMap,groupDetails,updatedBy,additionalInfo);</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">                if(null != notification){</span>
+<span class="nc" id="L35">                    notifications.add(notification);</span>
+                }
+            }
+
+<span class="nc bnc" id="L39" title="All 2 branches missed.">            if (CollectionUtils.isNotEmpty(</span>
+<span class="nc" id="L40">                    (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.EDIT))) {</span>
+
+                //No notifications to be send
+            }
+            // Validate Member Remove
+<span class="nc bnc" id="L45" title="All 2 branches missed.">            if (CollectionUtils.isNotEmpty((List&lt;String&gt;) memberOperationMap.get(JsonKey.REMOVE))) {</span>
+<span class="nc" id="L46">                Notification notification = handleMemberRemoveNotifications(memberOperationMap,groupDetails,membersInDB,updatedBy,additionalInfo);</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">                if(null != notification){</span>
+<span class="nc" id="L48">                    notifications.add(notification);</span>
+                }
+            }
+<span class="nc" id="L51">            return notifications;</span>
+        }
+<span class="nc" id="L53">        return null;</span>
+    }
+
+    private Notification handleMemberRemoveNotifications(Map memberOperationMap, Map&lt;String, Object&gt; groupDetails, List&lt;MemberResponse&gt; membersInDb, Map&lt;String, Object&gt; updatedBy, Map&lt;String, Object&gt; additionalInfo) {
+<span class="nc" id="L57">        Notification notification = new Notification();</span>
+<span class="nc" id="L58">        Map&lt;String,Object&gt; actionData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L59">        actionData.put(JsonKey.CATEGORY,JsonKey.GROUP);</span>
+<span class="nc" id="L60">        actionData.put(JsonKey.CREATED_BY,updatedBy);</span>
+<span class="nc" id="L61">        actionData.put(JsonKey.ADDITIONAL_INFO,additionalInfo);</span>
+<span class="nc" id="L62">        List&lt;String&gt; removeMemberList = (List&lt;String&gt;) memberOperationMap.get(JsonKey.REMOVE);</span>
+<span class="nc bnc" id="L63" title="All 4 branches missed.">        boolean isExitRequest = removeMemberList.size() == 1 &amp;&amp; ((String)updatedBy.get(JsonKey.ID)).equals(removeMemberList.get(0));</span>
+<span class="nc" id="L64">        List&lt;String&gt; userIds = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if(isExitRequest){</span>
+<span class="nc" id="L66">            actionData.put(JsonKey.TYPE, NotificationType.GROUP_MEMBER_EXIT);</span>
+<span class="nc" id="L67">            Map&lt;String,Object&gt; templates = getMemberExitTemplateObj(groupDetails, updatedBy);</span>
+<span class="nc" id="L68">            actionData.put(JsonKey.TEMPLATE,templates);</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            for (MemberResponse member:membersInDb) {</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">                if(!updatedBy.equals(member.getUserId()) &amp;&amp; JsonKey.ADMIN.equals(member.getRole())){</span>
+<span class="nc" id="L71">                    userIds.add(member.getUserId());</span>
+                }
+<span class="nc" id="L73">            }</span>
+<span class="nc" id="L74">        }else{</span>
+<span class="nc" id="L75">            actionData.put(JsonKey.TYPE, NotificationType.GROUP_MEMBER_REMOVED);</span>
+<span class="nc" id="L76">            Map&lt;String,Object&gt; templates = getMemberRemovedTemplateObj(groupDetails, updatedBy);</span>
+<span class="nc" id="L77">            actionData.put(JsonKey.TEMPLATE,templates);</span>
+<span class="nc" id="L78">            userIds.addAll(removeMemberList);</span>
+        }
+<span class="nc" id="L80">        notification.setIds(userIds);</span>
+<span class="nc" id="L81">        notification.setPriority(1);</span>
+<span class="nc" id="L82">        notification.setType(JsonKey.FEED);</span>
+<span class="nc" id="L83">        notification.setAction(actionData);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        return CollectionUtils.isNotEmpty(userIds) ? notification : null;</span>
+    }
+
+    private Notification handleMemberAddNotifications(Map memberOperationMap,Map&lt;String,Object&gt; groupDetails
+            , Map&lt;String,Object&gt; updatedBy, Map&lt;String, Object&gt; additionalInfo) {
+
+<span class="nc" id="L90">        Notification notification = new Notification();</span>
+<span class="nc" id="L91">        Map&lt;String,Object&gt; actionData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L92">        actionData.put(JsonKey.TYPE, NotificationType.GROUP_MEMBER_ADD);</span>
+<span class="nc" id="L93">        actionData.put(JsonKey.CATEGORY,JsonKey.GROUP);</span>
+<span class="nc" id="L94">        Map&lt;String,Object&gt; templates = getAddMemberTemplateObj(groupDetails, updatedBy);</span>
+<span class="nc" id="L95">        actionData.put(JsonKey.TEMPLATE,templates);</span>
+<span class="nc" id="L96">        actionData.put(JsonKey.CREATED_BY,updatedBy);</span>
+<span class="nc" id="L97">        actionData.put(JsonKey.ADDITIONAL_INFO,additionalInfo);</span>
+<span class="nc" id="L98">        List&lt;Map&lt;String,Object&gt;&gt; members = (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD);</span>
+<span class="nc" id="L99">        List&lt;String&gt; userIds = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        for (Map&lt;String,Object&gt; member:members) {</span>
+<span class="nc" id="L101">            userIds.add((String) member.get(JsonKey.USER_ID));</span>
+<span class="nc" id="L102">        }</span>
+<span class="nc" id="L103">        notification.setIds(userIds);</span>
+<span class="nc" id="L104">        notification.setPriority(1);</span>
+<span class="nc" id="L105">        notification.setType(JsonKey.FEED);</span>
+<span class="nc" id="L106">        notification.setAction(actionData);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        return CollectionUtils.isNotEmpty(userIds)? notification : null;</span>
+    }
+
+    private Map&lt;String, Object&gt; getAdditionalInfo(Map&lt;String, Object&gt; groupDetails) {
+<span class="nc" id="L111">        Map&lt;String, Object&gt; additionalInfo = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L112">        Map&lt;String,Object&gt; group= new HashMap&lt;&gt;();</span>
+<span class="nc" id="L113">        group.put(JsonKey.ID, groupDetails.get(JsonKey.ID));</span>
+<span class="nc" id="L114">        group.put(JsonKey.NAME, groupDetails.get(JsonKey.NAME));</span>
+<span class="nc" id="L115">        additionalInfo.put(JsonKey.GROUP, group);</span>
+<span class="nc" id="L116">        return additionalInfo;</span>
+    }
+
+    private Map&lt;String,Object&gt; getAddMemberTemplateObj(Map&lt;String, Object&gt; groupDetails, Map&lt;String,Object&gt; updatedBy) {
+<span class="nc" id="L120">          Map&lt;String,Object&gt; template = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L121">          template.put(JsonKey.TYPE, &quot;JSON&quot;);</span>
+<span class="nc" id="L122">          Map&lt;String,Object&gt; props = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L123">          props.put(JsonKey.PARAM1, groupDetails.get(JsonKey.NAME)+&quot; &quot;+JsonKey.GROUP);</span>
+<span class="nc" id="L124">          props.put(JsonKey.PARAM2,updatedBy.get(JsonKey.NAME));</span>
+<span class="nc" id="L125">          template.put(JsonKey.PARAMS,props);</span>
+<span class="nc" id="L126">          return template;</span>
+    }
+
+    private Map&lt;String,Object&gt; getMemberExitTemplateObj(Map&lt;String, Object&gt; groupDetails, Map&lt;String,Object&gt; updatedBy) {
+<span class="nc" id="L130">        Map&lt;String,Object&gt; template = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L131">        template.put(JsonKey.TYPE, &quot;JSON&quot;);</span>
+<span class="nc" id="L132">        Map&lt;String,Object&gt; props = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L133">        props.put(JsonKey.PARAM1, updatedBy.get(JsonKey.NAME));;</span>
+<span class="nc" id="L134">        props.put(JsonKey.PARAM2, groupDetails.get(JsonKey.NAME)+&quot; &quot;+JsonKey.GROUP);</span>
+<span class="nc" id="L135">        template.put(JsonKey.PARAMS,props);</span>
+
+<span class="nc" id="L137">        return template;</span>
+    }
+
+    private Map&lt;String,Object&gt; getMemberRemovedTemplateObj(Map&lt;String, Object&gt; groupDetails, Map&lt;String,Object&gt; updatedBy) {
+<span class="nc" id="L141">        Map&lt;String,Object&gt; template = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L142">        template.put(JsonKey.TYPE, &quot;JSON&quot;);</span>
+<span class="nc" id="L143">        Map&lt;String,Object&gt; props = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L144">        props.put(JsonKey.PARAM1, groupDetails.get(JsonKey.NAME)+&quot; &quot;+JsonKey.GROUP);;</span>
+<span class="nc" id="L145">        props.put(JsonKey.PARAM2, updatedBy.get(JsonKey.NAME));</span>
+<span class="nc" id="L146">        template.put(JsonKey.PARAMS,props);</span>
+
+<span class="nc" id="L148">        return template;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

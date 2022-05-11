@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ValidationUtil.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-service</a> &gt; <a href="index.source.html" class="el_package">validators</a> &gt; <span class="el_source">ValidationUtil.java</span></div><h1>ValidationUtil.java</h1><pre class="source lang-java linenums">package validators;
+
+import java.text.MessageFormat;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.exception.ValidationException;
+import org.sunbird.common.request.Request;
+import org.sunbird.util.LoggerUtil;
+
+<span class="nc" id="L12">public class ValidationUtil {</span>
+
+<span class="nc" id="L14">  private static LoggerUtil logger = new LoggerUtil(ValidationUtil.class);</span>
+
+  public static void validateRequestObject(Request request) throws BaseException {
+<span class="nc bnc" id="L17" title="All 2 branches missed.">    if (request.getRequest().isEmpty()) {</span>
+<span class="nc" id="L18">      logger.error(request.getContext(),&quot;validateMandatoryParamsOfStringType:incorrect request provided&quot;);</span>
+<span class="nc" id="L19">      throw new ValidationException.InvalidRequestData();</span>
+    }
+<span class="nc" id="L21">  }</span>
+
+  public static void validateMandatoryParamsWithType(
+      Map&lt;String, Object&gt; reqMap,
+      List&lt;String&gt; mandatoryParamsList,
+      Class&lt;?&gt; type,
+      boolean validatePresence,
+      String parentKey,
+      Map&lt;String,Object&gt; reqContext)
+      throws BaseException {
+<span class="nc bnc" id="L31" title="All 2 branches missed.">    for (String param : mandatoryParamsList) {</span>
+<span class="nc bnc" id="L32" title="All 2 branches missed.">      if (!reqMap.containsKey(param)) {</span>
+<span class="nc" id="L33">        throw new ValidationException.MandatoryParamMissing(param, parentKey);</span>
+      }
+
+<span class="nc bnc" id="L36" title="All 2 branches missed.">      if (!(isInstanceOf(reqMap.get(param).getClass(), type))) {</span>
+<span class="nc" id="L37">        logger.error(reqContext,&quot;validateMandatoryParamsOfStringType:incorrect request provided&quot;);</span>
+<span class="nc" id="L38">        throw new ValidationException.ParamDataTypeError(parentKey + &quot;.&quot; + param, type.getName());</span>
+      }
+
+<span class="nc bnc" id="L41" title="All 2 branches missed.">      if (validatePresence) {</span>
+<span class="nc" id="L42">        validatePresence(param, reqMap.get(param), type, parentKey,reqContext);</span>
+      }
+<span class="nc" id="L44">    }</span>
+<span class="nc" id="L45">  }</span>
+
+    public static void validateParamsWithType(Map&lt;String, Object&gt; reqMap,
+            List&lt;String&gt; paramList,
+            Class&lt;?&gt; type,
+            String parentKey,
+            Map&lt;String,Object&gt; reqContext)
+      throws BaseException {
+<span class="nc bnc" id="L53" title="All 2 branches missed.">      for (String param : paramList) {</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if(reqMap.containsKey(param)) {</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">          if (!(isInstanceOf(reqMap.get(param).getClass(), type))) {</span>
+<span class="nc" id="L56">            logger.error(reqContext,&quot;validateMandatoryParamsType:incorrect request provided&quot;);</span>
+<span class="nc" id="L57">            throw new ValidationException.ParamDataTypeError(parentKey + &quot;.&quot; + param, type.getName());</span>
+          }
+        }
+<span class="nc" id="L60">      }</span>
+<span class="nc" id="L61">  }</span>
+
+  private static void validatePresence(String key, Object value, Class&lt;?&gt; type, String parentKey,Map&lt;String,Object&gt; reqContext)
+      throws BaseException {
+<span class="nc bnc" id="L65" title="All 2 branches missed.">    if (type == String.class) {</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">      if (StringUtils.isBlank((String) value)) {</span>
+<span class="nc" id="L67">        logger.error(reqContext,&quot;validatePresence:incorrect request provided&quot;);</span>
+<span class="nc" id="L68">        throw new ValidationException.MandatoryParamMissing(key, parentKey);</span>
+      }
+<span class="nc bnc" id="L70" title="All 2 branches missed.">    } else if (type == Map.class) {</span>
+<span class="nc" id="L71">      Map&lt;String, Object&gt; map = (Map&lt;String, Object&gt;) value;</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">      if (map.isEmpty()) {</span>
+<span class="nc" id="L73">        logger.error(reqContext,&quot;validatePresence:incorrect request provided&quot;);</span>
+<span class="nc" id="L74">        throw new ValidationException.MandatoryParamMissing(key, parentKey);</span>
+      }
+<span class="nc bnc" id="L76" title="All 2 branches missed.">    } else if (type == List.class) {</span>
+<span class="nc" id="L77">      List&lt;?&gt; list = (List&lt;?&gt;) value;</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">      if (list.isEmpty()) {</span>
+<span class="nc" id="L79">        logger.error(reqContext,&quot;validatePresence:incorrect request provided&quot;);</span>
+<span class="nc" id="L80">        throw new ValidationException.MandatoryParamMissing(key, parentKey);</span>
+      }
+    }
+<span class="nc" id="L83">  }</span>
+  /**
+   * @param reqMap
+   * @param params list of params to validate values it contains
+   * @param paramsValue for each params provided , add a values in the map key should be the
+   *     paramName , value should be list of paramValue it should be for example key=status
+   *     value=[active, inactive]
+   * @throws BaseException
+   */
+  public static void validateParamValue(
+      Map&lt;String, Object&gt; reqMap,
+      List&lt;String&gt; params,
+      Map&lt;String, List&lt;String&gt;&gt; paramsValue,
+      String parentKey,
+      Map&lt;String,Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L99">    logger.info(reqContext, MessageFormat.format(</span>
+        &quot;validateParamValue: validating Param Value for the params {0} values {1}&quot;,
+        params,
+        paramsValue));
+<span class="nc bnc" id="L103" title="All 2 branches missed.">    for (String param : params) {</span>
+<span class="nc bnc" id="L104" title="All 4 branches missed.">      if (reqMap.containsKey(param) &amp;&amp; StringUtils.isNotEmpty((String) reqMap.get(param))) {</span>
+<span class="nc" id="L105">        List&lt;String&gt; values = paramsValue.get(param);</span>
+<span class="nc" id="L106">        String paramValue = (String) reqMap.get(param);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (!values.contains(paramValue)) {</span>
+<span class="nc" id="L108">          throw new ValidationException.InvalidParamValue(paramValue, parentKey + param);</span>
+        }
+      }
+<span class="nc" id="L111">    }</span>
+<span class="nc" id="L112">  }</span>
+
+  public static boolean isInstanceOf(Class objClass, Class targetClass) {
+<span class="nc" id="L115">    return targetClass.isAssignableFrom(objClass);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

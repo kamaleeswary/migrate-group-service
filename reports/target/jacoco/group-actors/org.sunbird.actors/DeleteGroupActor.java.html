@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DeleteGroupActor.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.actors</a> &gt; <span class="el_source">DeleteGroupActor.java</span></div><h1>DeleteGroupActor.java</h1><pre class="source lang-java linenums">package org.sunbird.actors;
+
+import java.text.MessageFormat;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.actor.core.ActorConfig;
+import org.sunbird.common.exception.AuthorizationException;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.common.util.NotificationType;
+import org.sunbird.models.MemberResponse;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.notifications.NotificationManager;
+import org.sunbird.service.GroupService;
+import org.sunbird.service.GroupServiceImpl;
+import org.sunbird.service.MemberService;
+import org.sunbird.service.MemberServiceImpl;
+import org.sunbird.util.*;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.helper.PropertiesCache;
+
+@ActorConfig(
+  tasks = {&quot;deleteGroup&quot;},
+  asyncTasks = {},
+  dispatcher = &quot;group-dispatcher&quot;
+)
+<span class="nc" id="L30">public class DeleteGroupActor extends BaseActor {</span>
+<span class="nc" id="L31">  private CacheUtil cacheUtil = new CacheUtil();</span>
+<span class="nc" id="L32">  private LoggerUtil logger = new LoggerUtil(DeleteGroupActor.class);</span>
+
+  @Override
+  public void onReceive(Request request) throws Throwable {
+<span class="nc" id="L36">    String operation = request.getOperation();</span>
+<span class="nc bnc" id="L37" title="All 2 branches missed.">    switch (operation) {</span>
+      case &quot;deleteGroup&quot;:
+<span class="nc" id="L39">        deleteGroup(request);</span>
+<span class="nc" id="L40">        break;</span>
+      default:
+<span class="nc" id="L42">        onReceiveUnsupportedMessage(&quot;DeleteGroupActor&quot;);</span>
+    }
+<span class="nc" id="L44">  }</span>
+
+  /**
+   * This method will delete the group
+   *
+   * @param actorMessage
+   * @throws BaseException
+   */
+  private void deleteGroup(Request actorMessage) throws BaseException {
+<span class="nc" id="L53">    logger.info(actorMessage.getContext(),&quot;DeleteGroup method call&quot;);</span>
+<span class="nc" id="L54">    GroupRequestHandler requestHandler = new GroupRequestHandler();</span>
+<span class="nc" id="L55">    String userId = requestHandler.getRequestedBy(actorMessage);</span>
+<span class="nc" id="L56">    String groupId = (String) actorMessage.getRequest().get(JsonKey.GROUP_ID);</span>
+<span class="nc" id="L57">    logger.info(actorMessage.getContext(),MessageFormat.format(&quot;Delete group for the groupId {0}&quot;, groupId));</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">    if (StringUtils.isEmpty(userId)) {</span>
+<span class="nc" id="L60">      logger.error(actorMessage.getContext(),MessageFormat.format(&quot;DeleteGroupActor: Error Code: {0}, Error Msg: {1} &quot;,ResponseCode.GS_DLT01.getErrorCode(),ResponseCode.GS_DLT01.getErrorMessage()));</span>
+<span class="nc" id="L61">      throw new AuthorizationException.NotAuthorized(ResponseCode.GS_DLT01);</span>
+    }
+<span class="nc" id="L63">    GroupService groupService = new GroupServiceImpl();</span>
+<span class="nc" id="L64">    Map&lt;String, Object&gt; dbResGroup = null;</span>
+   try {
+<span class="nc" id="L66">     dbResGroup = readGroup(groupId, groupService, actorMessage.getContext());</span>
+     // Only Group Creator should be able to delete the group
+<span class="nc bnc" id="L68" title="All 2 branches missed.">     if (!userId.equals((String) dbResGroup.get(JsonKey.CREATED_BY))) {</span>
+<span class="nc" id="L69">       logger.error(actorMessage.getContext(),MessageFormat.format(&quot;DeleteGroupActor: Error Code: {0}, Error Msg: {1} &quot;,ResponseCode.GS_DLT10.getErrorCode(),ResponseCode.GS_DLT10.getErrorMessage()));</span>
+<span class="nc" id="L70">       throw new AuthorizationException.NotAuthorized(ResponseCode.GS_DLT10);</span>
+     }
+
+     // Get all members belong to the group
+<span class="nc" id="L74">     MemberService memberService = new MemberServiceImpl();</span>
+<span class="nc" id="L75">     List&lt;MemberResponse&gt; membersInDB = memberService.fetchMembersByGroupId(groupId, actorMessage.getContext());</span>
+<span class="nc" id="L76">     Response response = groupService.deleteGroup(groupId, membersInDB, actorMessage.getContext());</span>
+     // delete cache for the group and all members belong to the group
+     boolean isUseridRedisEnabled =
+<span class="nc" id="L79">             Boolean.parseBoolean(</span>
+<span class="nc" id="L80">                     PropertiesCache.getInstance().getConfigValue(JsonKey.ENABLE_USERID_REDIS_CACHE));</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">     if (isUseridRedisEnabled) {</span>
+<span class="nc" id="L82">       cacheUtil.deleteCacheSync(groupId, actorMessage.getContext());</span>
+<span class="nc" id="L83">       cacheUtil.delCache(groupId + &quot;_&quot; + JsonKey.MEMBERS);</span>
+       // Remove group list user cache from redis
+<span class="nc" id="L85">       membersInDB.forEach(member -&gt; cacheUtil.delCache(member.getUserId()));</span>
+     }
+<span class="nc" id="L87">     sender().tell(response, self());</span>
+<span class="nc" id="L88">     TelemetryHandler.logGroupDeleteTelemetry(actorMessage, groupId, dbResGroup,true);</span>
+<span class="nc" id="L89">     NotificationManager.sendNotifications(actorMessage, Arrays.asList(NotificationType.GROUP_DELETE),dbResGroup, membersInDB);</span>
+<span class="nc" id="L90">   }catch (Exception ex){</span>
+<span class="nc" id="L91">     logger.debug(actorMessage.getContext(),MessageFormat.format(&quot;DeleteGroupActor: Request: {0}&quot;,actorMessage.getRequest()));</span>
+<span class="nc" id="L92">     TelemetryHandler.logGroupDeleteTelemetry(actorMessage, groupId, dbResGroup,false);</span>
+     try{
+<span class="nc" id="L94">       ExceptionHandler.handleExceptions(actorMessage, ex, ResponseCode.GS_DLT03);</span>
+<span class="nc" id="L95">     }catch (BaseException e){</span>
+<span class="nc" id="L96">       logger.error(actorMessage.getContext(),MessageFormat.format(&quot;DeleteGroupActor: Error Msg: {0} &quot;,e.getMessage()),e);</span>
+<span class="nc" id="L97">       throw e;</span>
+<span class="nc" id="L98">     }</span>
+<span class="nc" id="L99">   }</span>
+<span class="nc" id="L100">  }</span>
+
+  private Map&lt;String, Object&gt; readGroup(String groupId, GroupService groupService, Map&lt;String,Object&gt; reqContext) throws BaseException {
+    try {
+<span class="nc" id="L104">      return groupService.readGroup(groupId,reqContext);</span>
+<span class="nc" id="L105">    }catch (BaseException ex){</span>
+<span class="nc" id="L106">      throw new BaseException(ResponseCode.GS_DLT07.getErrorCode(),ResponseCode.GS_DLT07.getErrorMessage(),ex.getResponseCode());</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

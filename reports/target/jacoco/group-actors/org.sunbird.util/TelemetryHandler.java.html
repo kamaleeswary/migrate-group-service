@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TelemetryHandler.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">TelemetryHandler.java</span></div><h1>TelemetryHandler.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.cert.ocsp.Req;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.models.Group;
+import org.sunbird.telemetry.TelemetryEnvKey;
+import org.sunbird.telemetry.util.TelemetryUtil;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+<span class="nc" id="L17">public class TelemetryHandler {</span>
+
+    public static void logGroupCreateTelemetry(Request actorMessage, String groupId){
+        String source =
+<span class="nc bnc" id="L21" title="All 2 branches missed.">                actorMessage.getContext().get(org.sunbird.common.util.JsonKey.REQUEST_SOURCE) != null</span>
+<span class="nc" id="L22">                        ? (String) actorMessage.getContext().get(org.sunbird.common.util.JsonKey.REQUEST_SOURCE)</span>
+<span class="nc" id="L23">                        : &quot;&quot;;</span>
+
+<span class="nc" id="L25">        List&lt;Map&lt;String, Object&gt;&gt; correlatedObject = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L26" title="All 2 branches missed.">        if (StringUtils.isNotBlank(source)) {</span>
+<span class="nc" id="L27">            TelemetryUtil.generateCorrelatedObject(</span>
+<span class="nc" id="L28">                    source, StringUtils.capitalize(org.sunbird.common.util.JsonKey.REQUEST_SOURCE), null, correlatedObject);</span>
+        }
+<span class="nc" id="L30">        Map&lt;String, Object&gt; targetObject = null;</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">        targetObject = groupId != null ?</span>
+<span class="nc" id="L32">                TelemetryUtil.generateTargetObject(groupId, TelemetryEnvKey.GROUP_CREATED, org.sunbird.common.util.JsonKey.ACTIVE, null)</span>
+<span class="nc" id="L33">                : TelemetryUtil.generateTargetObject(groupId, TelemetryEnvKey.GROUP_CREATE_ERROR,null, null);</span>
+
+        // Add user information to Cdata
+<span class="nc" id="L36">        TelemetryUtil.generateCorrelatedObject(</span>
+<span class="nc" id="L37">                (String) actorMessage.getContext().get(JsonKey.USER_ID),</span>
+                TelemetryEnvKey.USER,
+                null,
+                correlatedObject);
+        // Add group info information to Cdata
+<span class="nc" id="L42">        TelemetryUtil.generateCorrelatedObject(</span>
+                groupId,
+                TelemetryEnvKey.GROUPID,
+                null,
+                correlatedObject);
+<span class="nc" id="L47">        TelemetryUtil.telemetryProcessingCall(</span>
+<span class="nc" id="L48">                actorMessage.getRequest(), targetObject, correlatedObject, actorMessage.getContext());</span>
+<span class="nc" id="L49">    }</span>
+
+    public static void logGroupDeleteTelemetry(Request actorMessage, String groupId, Map&lt;String, Object&gt; dbResGroup, boolean isDeleted) {
+<span class="nc" id="L52">        Map&lt;String, Object&gt; targetObject = null;</span>
+<span class="nc" id="L53">        List&lt;Map&lt;String, Object&gt;&gt; correlatedObject = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if(isDeleted) {</span>
+<span class="nc" id="L55">            targetObject =</span>
+<span class="nc" id="L56">                    TelemetryUtil.generateTargetObject(</span>
+                            groupId,
+                            TelemetryEnvKey.DELETE_GROUP,
+                            null,
+<span class="nc" id="L60">                            (String) dbResGroup.get(JsonKey.STATUS));</span>
+        }else{
+<span class="nc" id="L62">            targetObject =</span>
+<span class="nc" id="L63">                    TelemetryUtil.generateTargetObject(</span>
+                            groupId,
+                            TelemetryEnvKey.GROUP_DELETE_ERROR,
+                            null,
+<span class="nc bnc" id="L67" title="All 2 branches missed.">                            null != dbResGroup ? (String) dbResGroup.get(JsonKey.STATUS):null);</span>
+        }
+<span class="nc" id="L69">        TelemetryUtil.generateCorrelatedObject(</span>
+<span class="nc" id="L70">                (String) actorMessage.getContext().get(JsonKey.USER_ID),</span>
+                TelemetryEnvKey.USER,
+                null,
+                correlatedObject);
+        // Add group info information to Cdata
+<span class="nc" id="L75">        TelemetryUtil.generateCorrelatedObject(</span>
+                groupId,
+                TelemetryEnvKey.GROUPID,
+                null,
+                correlatedObject);
+<span class="nc" id="L80">        TelemetryUtil.telemetryProcessingCall(</span>
+<span class="nc" id="L81">                actorMessage.getRequest(), targetObject, correlatedObject, actorMessage.getContext());</span>
+<span class="nc" id="L82">    }</span>
+
+    public static void logGroupUpdateTelemetry(Request actorMessage, Group group, Map&lt;String, Object&gt; dbResGroup, boolean isSuccess) {
+<span class="nc" id="L85">        Map&lt;String, Object&gt; targetObject = null;</span>
+<span class="nc" id="L86">        List&lt;Map&lt;String, Object&gt;&gt; correlatedObject = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (isSuccess) {</span>
+<span class="nc bnc" id="L88" title="All 4 branches missed.">            if (null != dbResGroup &amp;&amp; null != dbResGroup.get(JsonKey.STATUS)) {</span>
+<span class="nc bnc" id="L89" title="All 3 branches missed.">                switch ((String) dbResGroup.get(JsonKey.STATUS)) {</span>
+                    case JsonKey.ACTIVE:
+<span class="nc" id="L91">                        targetObject = generateTargetForActiveGroup(actorMessage, group, dbResGroup);</span>
+<span class="nc" id="L92">                        break;</span>
+                    case JsonKey.SUSPENDED:
+<span class="nc" id="L94">                        targetObject =</span>
+<span class="nc" id="L95">                                TelemetryUtil.generateTargetObject(</span>
+<span class="nc" id="L96">                                        group.getId(),</span>
+                                        TelemetryEnvKey.ACTIVATE_GROUP,
+<span class="nc" id="L98">                                        group.getStatus(),</span>
+<span class="nc" id="L99">                                        (String) dbResGroup.get(JsonKey.STATUS));</span>
+<span class="nc" id="L100">                        break;</span>
+
+                    default:
+<span class="nc" id="L103">                        targetObject =</span>
+<span class="nc" id="L104">                                TelemetryUtil.generateTargetObject(</span>
+<span class="nc" id="L105">                                        group.getId(), TelemetryEnvKey.GROUP,  null, null);</span>
+                }
+
+            }
+        }else{
+<span class="nc" id="L110">            targetObject =</span>
+<span class="nc" id="L111">                    TelemetryUtil.generateTargetObject(</span>
+<span class="nc" id="L112">                            group.getId(),</span>
+                            TelemetryEnvKey.GROUP_UPDATE_ERROR,
+                            null,
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                            null != dbResGroup ?(String) dbResGroup.get(JsonKey.STATUS): null);</span>
+        }
+<span class="nc" id="L117">        TelemetryUtil.generateCorrelatedObject(</span>
+<span class="nc" id="L118">                (String) actorMessage.getContext().get(JsonKey.USER_ID),</span>
+                TelemetryEnvKey.USER,
+                null,
+                correlatedObject);
+        // Add group info information to Cdata
+<span class="nc" id="L123">        TelemetryUtil.generateCorrelatedObject(</span>
+<span class="nc" id="L124">                group.getId(),</span>
+                TelemetryEnvKey.GROUPID,
+                null,
+                correlatedObject);
+<span class="nc" id="L128">        TelemetryUtil.telemetryProcessingCall(</span>
+<span class="nc" id="L129">                actorMessage.getRequest(), targetObject, correlatedObject, actorMessage.getContext());</span>
+<span class="nc" id="L130">    }</span>
+
+    public static void logGroupMembershipUpdateTelemetry(Request actorMessage, String userId, boolean isSuccess) {
+        String source =
+<span class="nc bnc" id="L134" title="All 2 branches missed.">                actorMessage.getContext().get(JsonKey.REQUEST_SOURCE) != null</span>
+<span class="nc" id="L135">                        ? (String) actorMessage.getContext().get(JsonKey.REQUEST_SOURCE)</span>
+<span class="nc" id="L136">                        : &quot;&quot;;</span>
+
+<span class="nc" id="L138">        List&lt;Map&lt;String, Object&gt;&gt; correlatedObject = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        if (StringUtils.isNotBlank(source)) {</span>
+<span class="nc" id="L140">            TelemetryUtil.generateCorrelatedObject(</span>
+<span class="nc" id="L141">                    source, StringUtils.capitalize(JsonKey.REQUEST_SOURCE), null, correlatedObject);</span>
+        }
+<span class="nc" id="L143">        List&lt;Map&lt;String,Object&gt;&gt; groups =(List&lt;Map&lt;String, Object&gt;&gt;) actorMessage.getRequest().get(JsonKey.GROUPS);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        for (Map&lt;String,Object&gt; group:groups) {</span>
+            // Add group info information to Cdata
+<span class="nc" id="L146">            TelemetryUtil.generateCorrelatedObject(</span>
+<span class="nc" id="L147">                    (String) group.get(JsonKey.GROUP_ID),</span>
+                    TelemetryEnvKey.GROUPID,
+                    null,
+                    correlatedObject);
+<span class="nc" id="L151">        }</span>
+<span class="nc" id="L152">        Map&lt;String, Object&gt; targetObject = null;</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        if(isSuccess) {</span>
+<span class="nc" id="L154">            targetObject =</span>
+<span class="nc" id="L155">                    TelemetryUtil.generateTargetObject(</span>
+                            userId, TelemetryEnvKey.MEMBER_UPDATE,  null, null);
+        }else{
+<span class="nc" id="L158">            targetObject =</span>
+<span class="nc" id="L159">                    TelemetryUtil.generateTargetObject(</span>
+                            userId, TelemetryEnvKey.GROUP_MEMBER_UPDATE_ERROR, null, null);
+        }
+<span class="nc" id="L162">        TelemetryUtil.generateCorrelatedObject(</span>
+<span class="nc" id="L163">                (String) actorMessage.getContext().get(JsonKey.USER_ID),</span>
+                TelemetryEnvKey.USER,
+                null,
+                correlatedObject);
+<span class="nc" id="L167">        TelemetryUtil.telemetryProcessingCall(</span>
+<span class="nc" id="L168">                actorMessage.getRequest(), targetObject, correlatedObject, actorMessage.getContext());</span>
+<span class="nc" id="L169">    }</span>
+
+    private static Map&lt;String, Object&gt; generateTargetForActiveGroup(Request actorMessage, Group group, Map&lt;String, Object&gt; dbResGroup) {
+        Map&lt;String, Object&gt; targetObject;
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (!CollectionUtils.isEmpty(group.getActivities())) {</span>
+<span class="nc" id="L174">            targetObject = TelemetryUtil.generateTargetObject(</span>
+<span class="nc" id="L175">                    group.getId(),</span>
+                    TelemetryEnvKey.ACTIVITY,
+                    JsonKey.ACTIVE,
+<span class="nc" id="L178">                    (String) dbResGroup.get(JsonKey.STATUS));</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        } else if (!MapUtils.isEmpty((Map&lt;String, Object&gt;) actorMessage.getRequest().get(JsonKey.MEMBERS))) {</span>
+<span class="nc" id="L180">            targetObject = TelemetryUtil.generateTargetObject(</span>
+<span class="nc" id="L181">                    group.getId(),</span>
+                    TelemetryEnvKey.ADD_MEMBER,
+                    JsonKey.ACTIVE,
+<span class="nc" id="L184">                    (String) dbResGroup.get(JsonKey.STATUS));</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        } else if(JsonKey.SUSPENDED.equals(group.getStatus())){</span>
+<span class="nc" id="L186">            targetObject = TelemetryUtil.generateTargetObject(</span>
+<span class="nc" id="L187">                    group.getId(),</span>
+                    TelemetryEnvKey.DEACTIVATE_GROUP,
+                    JsonKey.ACTIVE,
+<span class="nc" id="L190">                    (String) dbResGroup.get(JsonKey.STATUS));</span>
+
+        } else {
+<span class="nc" id="L193">            targetObject = TelemetryUtil.generateTargetObject(</span>
+<span class="nc" id="L194">                    group.getId(),</span>
+                    TelemetryEnvKey.UPDATE_GROUP,
+                    JsonKey.ACTIVE,
+<span class="nc" id="L197">                    (String) dbResGroup.get(JsonKey.STATUS));</span>
+        }
+<span class="nc" id="L199">        return targetObject;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

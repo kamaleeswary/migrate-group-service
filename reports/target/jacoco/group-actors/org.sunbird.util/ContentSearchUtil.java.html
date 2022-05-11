@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ContentSearchUtil.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">ContentSearchUtil.java</span></div><h1>ContentSearchUtil.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import java.util.*;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.models.SearchRequest;
+import org.sunbird.util.helper.PropertiesCache;
+
+<span class="nc" id="L14">public class ContentSearchUtil implements SearchServiceUtil {</span>
+
+<span class="nc" id="L16">  private static String contentSearchURL = null;</span>
+<span class="nc" id="L17">  private static ObjectMapper objectMapper = new ObjectMapper();</span>
+  private static Map&lt;String, String&gt; headers;
+
+  static {
+<span class="nc" id="L21">    String baseUrl = System.getenv(JsonKey.SUNBIRD_CS_BASE_URL);</span>
+<span class="nc" id="L22">    String searchPath = System.getenv(JsonKey.SUNBIRD_CS_SEARCH_URL);</span>
+<span class="nc" id="L23">    String authKey = System.getenv(JsonKey.SUNBIRD_CS_AUTH_KEY);</span>
+<span class="nc bnc" id="L24" title="All 2 branches missed.">    if (StringUtils.isBlank(searchPath))</span>
+<span class="nc" id="L25">      searchPath = PropertiesCache.getInstance().getProperty(JsonKey.SUNBIRD_CS_SEARCH_URL);</span>
+<span class="nc bnc" id="L26" title="All 2 branches missed.">    if (StringUtils.isBlank(baseUrl))</span>
+<span class="nc" id="L27">      baseUrl = PropertiesCache.getInstance().getProperty(JsonKey.SUNBIRD_CS_BASE_URL);</span>
+<span class="nc bnc" id="L28" title="All 2 branches missed.">    if (StringUtils.isNotBlank(authKey)) {</span>
+<span class="nc" id="L29">      Map&lt;String, String&gt; headerMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L30">      headerMap.put(JsonKey.AUTHORIZATION, JsonKey.BEARER + authKey);</span>
+<span class="nc" id="L31">      headers = SearchServiceUtil.getUpdatedDefaultHeaders(headerMap);</span>
+<span class="nc" id="L32">    } else {</span>
+<span class="nc" id="L33">      headers = SearchServiceUtil.getUpdatedDefaultHeaders(headers);</span>
+    }
+<span class="nc" id="L35">    contentSearchURL = baseUrl + searchPath;</span>
+<span class="nc" id="L36">  }</span>
+
+  @Override
+  public Map&lt;String, Map&lt;String, Object&gt;&gt; searchContent(
+      Map&lt;String, String&gt; activityIds, List&lt;String&gt; fields, Map&lt;String, Object&gt; reqContext)
+      throws JsonProcessingException {
+<span class="nc" id="L42">    Map&lt;String, Map&lt;String, Object&gt;&gt; activityInfoMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L43">    SearchRequest request = new SearchRequest();</span>
+<span class="nc" id="L44">    Map&lt;String, Object&gt; filters = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L45">    filters.put(JsonKey.IDENTIFIER, activityIds.keySet());</span>
+<span class="nc" id="L46">    request.getRequest().put(JsonKey.FIELDS, fields);</span>
+<span class="nc" id="L47">    request.getRequest().put(JsonKey.FILTERS, filters);</span>
+<span class="nc" id="L48">    setTraceIdInHeader(headers, reqContext);</span>
+<span class="nc" id="L49">    String response =</span>
+<span class="nc" id="L50">        HttpClientUtil.post(contentSearchURL, objectMapper.writeValueAsString(request), headers,reqContext);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">    if (StringUtils.isNotBlank(response)) {</span>
+<span class="nc" id="L52">      JsonNode jsonNode = objectMapper.readTree(response);</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">      if (null != jsonNode.get(JsonKey.RESULT)</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">          &amp;&amp; null != jsonNode.get(JsonKey.RESULT).get(JsonKey.CONTENT)) {</span>
+
+<span class="nc" id="L56">        ArrayNode jsonArrayNode = (ArrayNode) jsonNode.get(JsonKey.RESULT).get(JsonKey.CONTENT);</span>
+
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        for (JsonNode activityJsonNode : jsonArrayNode) {</span>
+<span class="nc" id="L59">          String key =</span>
+<span class="nc" id="L60">              activityIds.get(activityJsonNode.get(JsonKey.IDENTIFIER).asText())</span>
+<span class="nc" id="L61">                  + activityJsonNode.get(JsonKey.IDENTIFIER).asText();</span>
+<span class="nc" id="L62">          activityInfoMap.put(</span>
+              key,
+<span class="nc" id="L64">              objectMapper.convertValue(</span>
+<span class="nc" id="L65">                  activityJsonNode, new TypeReference&lt;Map&lt;String, Object&gt;&gt;() {}));</span>
+<span class="nc" id="L66">        }</span>
+      }
+    }
+
+<span class="nc" id="L70">    return activityInfoMap;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

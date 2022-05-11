@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>UpdateGroupMembershipActor.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.actors</a> &gt; <span class="el_source">UpdateGroupMembershipActor.java</span></div><h1>UpdateGroupMembershipActor.java</h1><pre class="source lang-java linenums">package org.sunbird.actors;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.actor.core.ActorConfig;
+import org.sunbird.common.exception.AuthorizationException;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.exception.ValidationException;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.models.Member;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.service.MemberService;
+import org.sunbird.service.MemberServiceImpl;
+import org.sunbird.util.*;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.helper.PropertiesCache;
+
+@ActorConfig(
+  tasks = {&quot;updateGroupMembership&quot;},
+  asyncTasks = {},
+  dispatcher = &quot;group-dispatcher&quot;
+)
+<span class="nc" id="L30">public class UpdateGroupMembershipActor extends BaseActor {</span>
+<span class="nc" id="L31">  private CacheUtil cacheUtil = new CacheUtil();</span>
+<span class="nc" id="L32">  private LoggerUtil logger = new LoggerUtil(UpdateGroupMembershipActor.class);</span>
+
+  @Override
+  public void onReceive(Request request) throws Throwable {
+<span class="nc" id="L36">    String operation = request.getOperation();</span>
+
+<span class="nc bnc" id="L38" title="All 2 branches missed.">    switch (operation) {</span>
+      case &quot;updateGroupMembership&quot;:
+<span class="nc" id="L40">        updateGroupMembership(request);</span>
+<span class="nc" id="L41">        break;</span>
+      default:
+<span class="nc" id="L43">        onReceiveUnsupportedMessage(&quot;UpdateGroupMembershipActor&quot;);</span>
+    }
+<span class="nc" id="L45">  }</span>
+
+  private void updateGroupMembership(Request actorMessage) {
+<span class="nc" id="L48">    logger.info(actorMessage.getContext(),&quot;updateGroupMembership method call&quot;);</span>
+<span class="nc" id="L49">    GroupRequestHandler requestHandler = new GroupRequestHandler();</span>
+<span class="nc" id="L50">    String requestedBy = requestHandler.getRequestedBy(actorMessage);</span>
+<span class="nc" id="L51">    String userId = (String) actorMessage.getRequest().get(JsonKey.USER_ID);</span>
+    try {
+<span class="nc bnc" id="L53" title="All 4 branches missed.">      if (StringUtils.isEmpty(requestedBy) || !requestedBy.equals(userId)) {</span>
+<span class="nc" id="L54">        logger.error(actorMessage.getContext(),MessageFormat.format(&quot;UpdateGroupMembershipActor: Error Code: {0}, Error Msg: {1}&quot;,</span>
+<span class="nc" id="L55">                ResponseCode.GS_MBRSHP_UDT01.getErrorCode(),ResponseCode.GS_MBRSHP_UDT01.getErrorMessage()));</span>
+<span class="nc" id="L56">        throw new AuthorizationException.NotAuthorized(ResponseCode.GS_MBRSHP_UDT01);</span>
+      }
+
+<span class="nc" id="L59">    logger.info(actorMessage.getContext(),MessageFormat.format(&quot;Update groups details for the userId {0}&quot;, userId));</span>
+<span class="nc" id="L60">    List&lt;Map&lt;String, Object&gt;&gt; groups =</span>
+<span class="nc" id="L61">        (List&lt;Map&lt;String, Object&gt;&gt;) actorMessage.getRequest().get(JsonKey.GROUPS);</span>
+
+<span class="nc" id="L63">      List&lt;Member&gt; members = createMembersUpdateRequest(groups, userId);</span>
+<span class="nc" id="L64">    Response response = new Response();</span>
+
+<span class="nc bnc" id="L66" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(members)) {</span>
+<span class="nc" id="L67">        MemberService memberService = new MemberServiceImpl();</span>
+<span class="nc" id="L68">        response = memberService.editMembers(members,actorMessage.getContext(), userId);</span>
+      }
+      boolean isUseridRedisEnabled =
+<span class="nc" id="L71">              Boolean.parseBoolean(</span>
+<span class="nc" id="L72">                      PropertiesCache.getInstance().getConfigValue(JsonKey.ENABLE_USERID_REDIS_CACHE));</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">      if (isUseridRedisEnabled) {</span>
+        // Remove updated groups from cache
+<span class="nc" id="L75">        groups.forEach(</span>
+                group -&gt; {
+<span class="nc" id="L77">                  String groupId = (String) group.get(JsonKey.GROUP_ID);</span>
+<span class="nc" id="L78">                  cacheUtil.delCache(groupId + &quot;_&quot; + JsonKey.MEMBERS);</span>
+<span class="nc" id="L79">                });</span>
+
+        // Remove user cache list
+<span class="nc" id="L82">        cacheUtil.delCache(userId);</span>
+      }
+<span class="nc" id="L84">      sender().tell(response, self());</span>
+<span class="nc" id="L85">      TelemetryHandler.logGroupMembershipUpdateTelemetry(actorMessage, userId,true);</span>
+<span class="nc" id="L86">    }catch (Exception ex){</span>
+<span class="nc" id="L87">      logger.debug(actorMessage.getContext(),MessageFormat.format(&quot;UpdateGroupMembershipActor: Request: {0}&quot;,actorMessage.getRequest()));</span>
+<span class="nc" id="L88">      TelemetryHandler.logGroupMembershipUpdateTelemetry(actorMessage, userId,false);</span>
+      try{
+<span class="nc" id="L90">        ExceptionHandler.handleExceptions(actorMessage, ex, ResponseCode.GS_MBRSHP_UDT03);</span>
+<span class="nc" id="L91">      }catch (BaseException e){</span>
+<span class="nc" id="L92">        logger.error(actorMessage.getContext(),MessageFormat.format(&quot;UpdateGroupMembershipActor:  Error Msg: {0} &quot;,e.getMessage()),e);</span>
+<span class="nc" id="L93">        throw e;</span>
+<span class="nc" id="L94">      }</span>
+<span class="nc" id="L95">    }</span>
+<span class="nc" id="L96">  }</span>
+
+  private List&lt;Member&gt; createMembersUpdateRequest(List&lt;Map&lt;String, Object&gt;&gt; groups, String userId) {
+<span class="nc" id="L99">    List&lt;Member&gt; members = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L100">    ObjectMapper mapper = new ObjectMapper();</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">    for (Map&lt;String, Object&gt; groupMembership : groups) {</span>
+<span class="nc" id="L102">      Member member = mapper.convertValue(groupMembership, Member.class);</span>
+      // TODO: Needs to be removed in future with role based access, Now allowing only visited flag
+      // to be updated
+<span class="nc bnc" id="L105" title="All 2 branches missed.">      if (member != null</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">          &amp;&amp; (StringUtils.isNotEmpty(member.getRole())</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">              || StringUtils.isNotEmpty(member.getStatus()))) {</span>
+<span class="nc" id="L108">        throw new AuthorizationException.NotAuthorized(ResponseCode.GS_MBRSHP_UDT01);</span>
+      }
+<span class="nc" id="L110">      member.setUserId(userId);</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">      if (StringUtils.isBlank(member.getGroupId())) {</span>
+<span class="nc" id="L112">        throw new ValidationException.MandatoryParamMissing(JsonKey.GROUP_ID, JsonKey.GROUPS, ResponseCode.GS_MBRSHP_UDT02);</span>
+      }
+<span class="nc" id="L114">      members.add(member);</span>
+<span class="nc" id="L115">    }</span>
+<span class="nc" id="L116">    return members;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

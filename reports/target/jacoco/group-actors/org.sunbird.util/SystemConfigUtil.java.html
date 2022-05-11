@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SystemConfigUtil.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">SystemConfigUtil.java</span></div><h1>SystemConfigUtil.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.common.response.Response;
+import org.sunbird.service.UserService;
+import org.sunbird.service.UserServiceImpl;
+import org.sunbird.common.util.LoggerEnum;
+
+<span class="nc" id="L12">public class SystemConfigUtil {</span>
+<span class="nc" id="L13">  private static LoggerUtil logger = new LoggerUtil(SystemConfigUtil.class);</span>
+<span class="nc" id="L14">  private static UserService userService = UserServiceImpl.getInstance();</span>
+<span class="nc" id="L15">  private static Map&lt;String, Object&gt; custodianOrgDetails = new HashMap&lt;&gt;();</span>
+
+  public static void init() {
+<span class="nc" id="L18">    cacheCustodianOrgDetails();</span>
+<span class="nc" id="L19">  }</span>
+
+  private static Map&lt;String, String&gt; getSystemSettingConfig() {
+<span class="nc" id="L22">    Map&lt;String, String&gt; systemSettingConfig = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L23">    Response response = userService.getSystemSettings();</span>
+<span class="nc" id="L24">    logger.info(</span>
+<span class="nc" id="L25">        &quot;DataCacheHandler:cacheSystemConfig: Cache system setting fields&quot; + response.getResult()+LoggerEnum.INFO.name());</span>
+<span class="nc" id="L26">    List&lt;Map&lt;String, Object&gt;&gt; responseList =</span>
+<span class="nc" id="L27">        (List&lt;Map&lt;String, Object&gt;&gt;) response.get(JsonKey.RESPONSE);</span>
+<span class="nc bnc" id="L28" title="All 4 branches missed.">    if (null != responseList &amp;&amp; !responseList.isEmpty()) {</span>
+<span class="nc bnc" id="L29" title="All 2 branches missed.">      for (Map&lt;String, Object&gt; resultMap : responseList) {</span>
+<span class="nc" id="L30">        systemSettingConfig.put(</span>
+<span class="nc" id="L31">            ((String) resultMap.get(JsonKey.FIELD)), (String) resultMap.get(JsonKey.VALUE));</span>
+<span class="nc" id="L32">      }</span>
+    }
+
+<span class="nc" id="L35">    return systemSettingConfig;</span>
+  }
+
+  private static void cacheCustodianOrgDetails() {
+<span class="nc" id="L39">    Map&lt;String, String&gt; configSettings = getSystemSettingConfig();</span>
+<span class="nc" id="L40">    String custodianOrgId = configSettings.get(JsonKey.CUSTODIAN_ORG_ID);</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">    if (null != custodianOrgId) {</span>
+<span class="nc" id="L42">      Response response = userService.getOrganisationDetails(custodianOrgId);</span>
+<span class="nc" id="L43">      logger.info(</span>
+<span class="nc" id="L44">          &quot;DataCacheHandler:cacheSystemConfig: Cache system setting fields&quot; + response.getResult()+LoggerEnum.INFO.name());</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">      if (null != response</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">          &amp;&amp; null != response.getResult()</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">          &amp;&amp; null != response.getResult().get(JsonKey.RESPONSE)) {</span>
+<span class="nc" id="L48">        custodianOrgDetails = (Map&lt;String, Object&gt;) response.getResult().get(JsonKey.RESPONSE);</span>
+      }
+    }
+<span class="nc" id="L51">  }</span>
+
+  public static Map&lt;String, Object&gt; getCustodianOrgDetails() {
+<span class="nc" id="L54">    return custodianOrgDetails;</span>
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

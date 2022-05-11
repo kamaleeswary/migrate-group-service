@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>OnRequestHandler.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-service</a> &gt; <a href="index.source.html" class="el_package">utils.module</a> &gt; <span class="el_source">OnRequestHandler.java</span></div><h1>OnRequestHandler.java</h1><pre class="source lang-java linenums">package utils.module;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import controllers.ResponseHandler;
+import java.lang.reflect.Method;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.sunbird.common.exception.AuthorizationException;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.message.IResponseMessage;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.common.request.HeaderParam;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.LoggerUtil;
+import org.sunbird.util.SystemConfigUtil;
+import org.sunbird.util.helper.PropertiesCache;
+import play.http.ActionCreator;
+import play.mvc.Action;
+import play.mvc.Http;
+import play.mvc.Result;
+
+<span class="nc" id="L28">public class OnRequestHandler implements ActionCreator {</span>
+
+<span class="nc" id="L30">  private static LoggerUtil logger = new LoggerUtil(OnRequestHandler.class);</span>
+  private static String custodianOrgHashTagId;
+<span class="nc" id="L32">  private ObjectMapper mapper = new ObjectMapper();</span>
+
+  @Override
+  public Action createAction(Http.Request request, Method method) {
+<span class="nc" id="L36">    return new Action.Simple() {</span>
+      @Override
+      public CompletionStage&lt;Result&gt; call(Http.Request request) {
+<span class="nc" id="L39">        Optional&lt;String&gt; optionalMessageId = request.getHeaders().get(JsonKey.REQUEST_MESSAGE_ID);</span>
+        String requestId;
+<span class="nc bnc" id="L41" title="All 2 branches missed.">        if (optionalMessageId.isPresent()) {</span>
+<span class="nc" id="L42">          requestId = optionalMessageId.get();</span>
+        } else {
+<span class="nc" id="L44">          UUID uuid = UUID.randomUUID();</span>
+<span class="nc" id="L45">          requestId = uuid.toString();</span>
+        }
+<span class="nc" id="L47">        Optional&lt;String&gt; optionalTraceId =</span>
+<span class="nc" id="L48">            request.getHeaders().get(HeaderParam.X_REQUEST_ID.getName());</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        if (optionalTraceId.isPresent()) {</span>
+<span class="nc" id="L50">          MDC.put(</span>
+              JsonKey.X_REQUEST_ID,
+<span class="nc" id="L52">              request.getHeaders().get(HeaderParam.X_REQUEST_ID.getName()).get());</span>
+        } else {
+<span class="nc" id="L54">          MDC.put(JsonKey.X_REQUEST_ID, requestId);</span>
+        }
+        CompletionStage&lt;Result&gt; result;
+<span class="nc" id="L57">        Map userAuthentication = RequestInterceptor.verifyRequestData(request);</span>
+<span class="nc" id="L58">        String message = (String) userAuthentication.get(JsonKey.USER_ID);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (userAuthentication.get(JsonKey.MANAGED_FOR) != null) {</span>
+<span class="nc" id="L60">          request =</span>
+<span class="nc" id="L61">              request.addAttr(</span>
+<span class="nc" id="L62">                  Attrs.MANAGED_FOR, (String) userAuthentication.get(JsonKey.MANAGED_FOR));</span>
+        }
+<span class="nc" id="L64">        request = initializeContext(request, message, requestId);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (!JsonKey.USER_UNAUTH_STATES.contains(message)) {</span>
+<span class="nc" id="L66">          request = request.addAttr(Attrs.USERID, message);</span>
+<span class="nc" id="L67">          result = delegate.call(request);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        } else if (JsonKey.UNAUTHORIZED.equals(message)) {</span>
+<span class="nc" id="L69">          result = getAuthorizedResult(request, message);</span>
+        } else {
+<span class="nc" id="L71">          result = delegate.call(request);</span>
+        }
+
+<span class="nc" id="L74">        return result.thenApply(res -&gt; res.withHeader(&quot;Access-Control-Allow-Origin&quot;, &quot;*&quot;));</span>
+      }
+    };
+  }
+
+  /**
+   *  Set Error code specific to operation
+   * @param request
+   * @param errorMessage
+   * @return
+   */
+  public CompletionStage&lt;Result&gt; getAuthorizedResult(Http.Request request, String errorMessage) {
+<span class="nc" id="L86">    String contextStr= null;</span>
+<span class="nc bnc" id="L87" title="All 4 branches missed.">    if (request.attrs() != null &amp;&amp; request.attrs().containsKey(Attrs.CONTEXT)) {</span>
+<span class="nc" id="L88">      contextStr = (String) request.attrs().get(Attrs.CONTEXT);</span>
+    }
+    try {
+<span class="nc" id="L91">      Map&lt;String, Object&gt; contextObject = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">      if (StringUtils.isNotBlank(contextStr)) {</span>
+<span class="nc" id="L93">        contextObject = mapper.readValue(contextStr, Map.class);</span>
+      }
+<span class="nc" id="L95">      logger.error((Map&lt;String, Object&gt;) contextObject.get(JsonKey.CONTEXT), &quot;Data error found--&quot; + errorMessage);</span>
+<span class="nc" id="L96">      ResponseCode responseCode = ResponseCode.unAuthorized;</span>
+<span class="nc" id="L97">      Result result =</span>
+<span class="nc" id="L98">              ResponseHandler.handleFailureResponse(new AuthorizationException.NotAuthorized(responseCode), request);</span>
+<span class="nc" id="L99">      return CompletableFuture.completedFuture(result);</span>
+<span class="nc" id="L100">    }catch (Exception ex){</span>
+<span class="nc" id="L101">        logger.error(&quot;Error process set request context&quot; ,ex);</span>
+<span class="nc" id="L102">        throw new BaseException(</span>
+                IResponseMessage.SERVER_ERROR,
+                IResponseMessage.INTERNAL_ERROR,
+<span class="nc" id="L105">                ResponseCode.SERVER_ERROR.getCode());</span>
+      }
+   }
+   
+  /**
+   * Set the Context paramter to the request
+   *
+   * @param httpReq
+   * @param userId
+   */
+  Http.Request initializeContext(Http.Request httpReq, String userId, String requestId) {
+<span class="nc" id="L116">    Map&lt;String, Object&gt; requestContext = new WeakHashMap&lt;&gt;();</span>
+    try {
+<span class="nc" id="L118">      String env = getEnv(httpReq);</span>
+<span class="nc" id="L119">      requestContext.put(JsonKey.ENV, env);</span>
+<span class="nc" id="L120">      requestContext.put(JsonKey.REQUEST_TYPE, JsonKey.API_CALL);</span>
+<span class="nc" id="L121">      requestContext.put(JsonKey.URL, httpReq.uri());</span>
+<span class="nc" id="L122">      requestContext.put(JsonKey.METHOD, httpReq.method());</span>
+<span class="nc" id="L123">      Optional&lt;String&gt; optionalChannel = httpReq.getHeaders().get(HeaderParam.CHANNEL_ID.getName());</span>
+      String channel;
+<span class="nc bnc" id="L125" title="All 2 branches missed.">      if (optionalChannel.isPresent()) {</span>
+<span class="nc" id="L126">        channel = optionalChannel.get();</span>
+      } else {
+<span class="nc" id="L128">        channel = getCustodianOrgHashTagId();</span>
+      }
+<span class="nc" id="L130">      requestContext.put(JsonKey.CHANNEL, channel);</span>
+<span class="nc" id="L131">      requestContext.put(JsonKey.REQUEST_ID, requestId);</span>
+<span class="nc" id="L132">      requestContext.put(JsonKey.REQUEST_MESSAGE_ID, requestId);</span>
+
+<span class="nc" id="L134">      requestContext.putAll(cacheTelemetryPdata());</span>
+<span class="nc" id="L135">      Optional&lt;String&gt; optionalAppId = httpReq.getHeaders().get(HeaderParam.X_APP_ID.getName());</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">      if (optionalAppId.isPresent()) {</span>
+<span class="nc" id="L137">        requestContext.put(JsonKey.APP_ID, optionalAppId.get());</span>
+      }
+<span class="nc" id="L139">      Optional&lt;String&gt; optionalDeviceId =</span>
+<span class="nc" id="L140">          httpReq.getHeaders().get(HeaderParam.X_Device_ID.getName());</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">      if (optionalDeviceId.isPresent()) {</span>
+<span class="nc" id="L142">        requestContext.put(JsonKey.DEVICE_ID, optionalDeviceId.get());</span>
+      }
+<span class="nc" id="L144">      Optional&lt;String&gt; optionalTraceEnabled =</span>
+<span class="nc" id="L145">          httpReq.getHeaders().get(HeaderParam.X_TRACE_ENABLED.getName());</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">      if (optionalTraceEnabled.isPresent()) {</span>
+<span class="nc" id="L147">        requestContext.put(JsonKey.X_TRACE_ENABLED, optionalTraceEnabled.get());</span>
+      }
+<span class="nc" id="L149">      Optional&lt;String&gt; optionalTraceId =</span>
+<span class="nc" id="L150">          httpReq.getHeaders().get(HeaderParam.X_REQUEST_ID.getName());</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">      if (optionalTraceId.isPresent()) {</span>
+<span class="nc" id="L152">        requestContext.put(JsonKey.X_REQUEST_ID, optionalTraceId.get());</span>
+<span class="nc" id="L153">        httpReq = httpReq.addAttr(Attrs.X_REQUEST_ID, optionalTraceId.get());</span>
+      } else {
+<span class="nc" id="L155">        httpReq = httpReq.addAttr(Attrs.X_REQUEST_ID, requestId);</span>
+<span class="nc" id="L156">        requestContext.put(JsonKey.X_REQUEST_ID, requestId);</span>
+      }
+<span class="nc bnc" id="L158" title="All 4 branches missed.">      if (null != userId &amp;&amp; !JsonKey.USER_UNAUTH_STATES.contains(userId)) {</span>
+<span class="nc" id="L159">        requestContext.put(JsonKey.ACTOR_ID, userId);</span>
+<span class="nc" id="L160">        requestContext.put(JsonKey.ACTOR_TYPE, StringUtils.capitalize(JsonKey.USER));</span>
+      } else {
+<span class="nc" id="L162">        Optional&lt;String&gt; optionalConsumerId =</span>
+<span class="nc" id="L163">            httpReq.getHeaders().get(HeaderParam.X_Consumer_ID.getName());</span>
+        String consumerId;
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (optionalConsumerId.isPresent()) {</span>
+<span class="nc" id="L166">          consumerId = optionalConsumerId.get();</span>
+        } else {
+<span class="nc" id="L168">          consumerId = JsonKey.DEFAULT_CONSUMER_ID;</span>
+        }
+<span class="nc" id="L170">        requestContext.put(JsonKey.ACTOR_ID, consumerId);</span>
+<span class="nc" id="L171">        requestContext.put(JsonKey.ACTOR_TYPE, StringUtils.capitalize(JsonKey.CONSUMER));</span>
+      }
+<span class="nc" id="L173">      Map&lt;String, Object&gt; map = new WeakHashMap&lt;&gt;();</span>
+<span class="nc" id="L174">      map.put(JsonKey.CONTEXT, requestContext);</span>
+<span class="nc" id="L175">      return httpReq.addAttr(Attrs.CONTEXT, mapper.writeValueAsString(map));</span>
+<span class="nc" id="L176">    } catch (Exception ex) {</span>
+<span class="nc" id="L177">      logger.error(requestContext,&quot;Error process set request context&quot; + ex.getMessage());</span>
+<span class="nc" id="L178">      throw new BaseException(</span>
+          IResponseMessage.SERVER_ERROR,
+          IResponseMessage.INTERNAL_ERROR,
+<span class="nc" id="L181">          ResponseCode.SERVER_ERROR.getCode());</span>
+    }
+  }
+
+  private String getCustodianOrgHashTagId() {
+<span class="nc bnc" id="L186" title="All 2 branches missed.">    if (null != custodianOrgHashTagId) {</span>
+<span class="nc" id="L187">      return custodianOrgHashTagId;</span>
+    }
+<span class="nc" id="L189">    synchronized (OnRequestHandler.class) {</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">      if (custodianOrgHashTagId == null) {</span>
+        try {
+          // Get hash tag ID of custodian org
+<span class="nc" id="L193">          Map&lt;String, Object&gt; custodianOrgDetails = SystemConfigUtil.getCustodianOrgDetails();</span>
+<span class="nc bnc" id="L194" title="All 4 branches missed.">          if (null != custodianOrgDetails &amp;&amp; !custodianOrgDetails.isEmpty()) {</span>
+<span class="nc" id="L195">            custodianOrgHashTagId = (String) custodianOrgDetails.get(JsonKey.HASH_TAG_ID);</span>
+          } else {
+<span class="nc" id="L197">            custodianOrgHashTagId = &quot;&quot;;</span>
+          }
+
+<span class="nc" id="L200">        } catch (Exception ex) {</span>
+<span class="nc" id="L201">          custodianOrgHashTagId = &quot;&quot;;</span>
+<span class="nc" id="L202">        }</span>
+      }
+<span class="nc" id="L204">    }</span>
+<span class="nc" id="L205">    return custodianOrgHashTagId;</span>
+  }
+
+  private static Map&lt;String, Object&gt; cacheTelemetryPdata() {
+<span class="nc" id="L209">    Map&lt;String, Object&gt; telemetryPdata = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L210">    telemetryPdata.put(&quot;telemetry_pdata_id&quot;, PropertiesCache.getConfigValue(&quot;telemetry_pdata_id&quot;));</span>
+<span class="nc" id="L211">    telemetryPdata.put(</span>
+<span class="nc" id="L212">        &quot;telemetry_pdata_pid&quot;, PropertiesCache.getConfigValue(&quot;telemetry_pdata_pid&quot;));</span>
+<span class="nc" id="L213">    telemetryPdata.put(</span>
+<span class="nc" id="L214">        &quot;telemetry_pdata_ver&quot;, PropertiesCache.getConfigValue(&quot;telemetry_pdata_ver&quot;));</span>
+<span class="nc" id="L215">    return telemetryPdata;</span>
+  }
+
+  private static String getEnv(Http.Request request) {
+<span class="nc" id="L219">    String uri = request.uri();</span>
+<span class="nc" id="L220">    String env = &quot;&quot;;</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">    if (uri.startsWith(&quot;/v1/group&quot;)) {</span>
+<span class="nc" id="L222">      env = JsonKey.GROUPS;</span>
+    }
+<span class="nc" id="L224">    return env;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>NotificationService.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">NotificationService.java</span></div><h1>NotificationService.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.sunbird.actors.GroupNotificationActor;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.common.util.Notification;
+import org.sunbird.util.helper.PropertiesCache;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+<span class="nc" id="L15">public class NotificationService {</span>
+<span class="nc" id="L16">    private LoggerUtil logger = new LoggerUtil(NotificationService.class);</span>
+
+    private static String notificationServiceUrl;
+    private static String notificationServiceBaseUrl;
+    private static String max_batch_limits;
+<span class="nc" id="L21">    private static ObjectMapper objectMapper = new ObjectMapper();</span>
+
+    static {
+<span class="nc" id="L24">        notificationServiceBaseUrl = PropertiesCache.getInstance().getProperty(JsonKey.NOTIFICATION_SERVICE_BASE_URL);</span>
+<span class="nc" id="L25">        notificationServiceUrl = PropertiesCache.getInstance().getProperty(JsonKey.NOTIFICATION_SERVICE_API_URL);</span>
+<span class="nc" id="L26">        max_batch_limits = PropertiesCache.getInstance().getProperty(JsonKey.MAX_BATCH_LIMIT);</span>
+<span class="nc" id="L27">    }</span>
+
+    public void sendSyncNotification(List&lt;Notification&gt; notifications, Map&lt;String,Object&gt; reqContext){
+<span class="nc" id="L30">        List&lt;Notification&gt; notificationList = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">        for (Notification notification: notifications) {</span>
+<span class="nc" id="L32">            List&lt;String&gt; ids = notification.getIds();</span>
+<span class="nc" id="L33">            notificationList.addAll(createNotificationsBatch(notification));</span>
+<span class="nc" id="L34">        }</span>
+<span class="nc" id="L35">        Map&lt;String, String&gt; requestHeader = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L36">        getUpdatedRequestHeader(requestHeader, reqContext);</span>
+        try {
+<span class="nc" id="L38">            Map&lt;String,Object&gt; notificationReq = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L39">            notificationReq.put(JsonKey.NOTIFICATIONS,notificationList);</span>
+<span class="nc" id="L40">            Map&lt;String,Object&gt; request  = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L41">            request.put(JsonKey.REQUEST,notificationReq);</span>
+<span class="nc" id="L42">            String notificationStrReq = objectMapper.writeValueAsString(request);</span>
+<span class="nc" id="L43">            logger.info(reqContext,notificationStrReq);</span>
+<span class="nc" id="L44">            String response =</span>
+<span class="nc" id="L45">                        HttpClientUtil.post(</span>
+                                notificationServiceBaseUrl + notificationServiceUrl, notificationStrReq, requestHeader,reqContext);
+
+<span class="nc" id="L48">        } catch (JsonProcessingException ex) {</span>
+<span class="nc" id="L49">            logger.error(reqContext,&quot;Error sending notifications&quot;,ex);</span>
+<span class="nc" id="L50">        }</span>
+<span class="nc" id="L51">    }</span>
+
+    private List&lt;Notification&gt; createNotificationsBatch(Notification notification) {
+<span class="nc" id="L54">        List&lt;Notification&gt; notifications = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L55">        int idSize = notification.getIds().size();</span>
+<span class="nc" id="L56">        int maxBatchLimit = Integer.parseInt(max_batch_limits);</span>
+<span class="nc" id="L57">        List&lt;List&lt;String&gt;&gt; idLists = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L58">        List&lt;String&gt; ids = notification.getIds();</span>
+<span class="nc" id="L59">        int index = 0;</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        for (int i=0 ; i&lt;ids.size(); i++){</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            if(i % maxBatchLimit == 0){</span>
+<span class="nc" id="L62">                idLists.add(new ArrayList&lt;&gt;());</span>
+<span class="nc" id="L63">                index++;</span>
+            }
+<span class="nc" id="L65">            idLists.get(index-1).add(ids.get(i));</span>
+        }
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        for (List&lt;String&gt; idList : idLists) {</span>
+<span class="nc" id="L68">            notifications.add(createNotificationObj(notification, idList));</span>
+<span class="nc" id="L69">        }</span>
+<span class="nc" id="L70">        return notifications;</span>
+    }
+
+    private Notification createNotificationObj(Notification notification, List&lt;String&gt; idList) {
+<span class="nc" id="L74">            Notification newNotificationObj = new Notification();</span>
+<span class="nc" id="L75">            newNotificationObj.setIds(idList);</span>
+<span class="nc" id="L76">            newNotificationObj.setAction(notification.getAction());</span>
+<span class="nc" id="L77">            newNotificationObj.setPriority(notification.getPriority());</span>
+<span class="nc" id="L78">            newNotificationObj.setType(notification.getType());</span>
+<span class="nc" id="L79">            return newNotificationObj;</span>
+    }
+
+    void getUpdatedRequestHeader(Map&lt;String, String&gt; header, Map&lt;String, Object&gt; reqContext) {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        if (null == header) {</span>
+<span class="nc" id="L84">            header = new HashMap&lt;&gt;();</span>
+        }
+<span class="nc" id="L86">        header.put(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+<span class="nc" id="L87">        setTraceIdInHeader(header, reqContext);</span>
+<span class="nc" id="L88">    }</span>
+
+    public static void setTraceIdInHeader(Map&lt;String, String&gt; header,  Map&lt;String, Object&gt; reqContext) {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (null != reqContext) {</span>
+<span class="nc" id="L92">            header.put(JsonKey.X_TRACE_ENABLED, (String) reqContext.get(JsonKey.X_TRACE_ENABLED));</span>
+<span class="nc" id="L93">            header.put(JsonKey.X_REQUEST_ID, (String) reqContext.get(JsonKey.X_REQUEST_ID));</span>
+        }
+<span class="nc" id="L95">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

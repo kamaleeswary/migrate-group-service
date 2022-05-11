@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GroupUpdateRequestValidator.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-service</a> &gt; <a href="index.source.html" class="el_package">validators</a> &gt; <span class="el_source">GroupUpdateRequestValidator.java</span></div><h1>GroupUpdateRequestValidator.java</h1><pre class="source lang-java linenums">package validators;
+
+import com.google.common.collect.Lists;
+
+import java.text.MessageFormat;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.ObjectUtils;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.exception.ValidationException;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.LoggerUtil;
+
+<span class="nc" id="L18">public class GroupUpdateRequestValidator implements IRequestValidator {</span>
+
+<span class="nc" id="L20">  private static LoggerUtil logger = new LoggerUtil(GroupUpdateRequestValidator.class);</span>
+
+  @Override
+  public boolean validate(Request request) throws BaseException {
+<span class="nc" id="L24">    logger.info(request.getContext(),&quot;Validating the update group request &quot;+request.getRequest());</span>
+    try {
+<span class="nc" id="L26">      ValidationUtil.validateRequestObject(request);</span>
+<span class="nc" id="L27">      ValidationUtil.validateMandatoryParamsWithType(</span>
+<span class="nc" id="L28">              request.getRequest(),</span>
+<span class="nc" id="L29">              Lists.newArrayList(JsonKey.GROUP_ID),</span>
+              String.class,
+              true,
+<span class="nc" id="L32">              JsonKey.REQUEST,request.getContext());</span>
+<span class="nc" id="L33">      ValidationUtil.validateParamsWithType(request.getRequest(),Lists.newArrayList(JsonKey.MEMBERS,JsonKey.ACTIVITIES),</span>
+<span class="nc" id="L34">              Map.class,JsonKey.REQUEST,request.getContext());</span>
+<span class="nc" id="L35">      validateActivityList(request);</span>
+
+<span class="nc" id="L37">      return true;</span>
+<span class="nc" id="L38">    }catch (BaseException ex){</span>
+<span class="nc" id="L39">      BaseException baseException = new BaseException(ResponseCode.GS_UDT02.getErrorCode(),ResponseCode.GS_UDT02.getErrorMessage(),ex.getResponseCode());</span>
+<span class="nc" id="L40">      logger.error(request.getContext(), MessageFormat.format(&quot;GroupUpdateRequestValidator: Error Code: {0}, ErrMsg {1}&quot;,ResponseCode.GS_UDT02.getErrorCode(),ex.getMessage()),baseException);</span>
+<span class="nc" id="L41">      throw baseException;</span>
+    }
+  }
+
+  /**
+   * checks mandatory param id and type of activity
+   *
+   * @param request
+   * @throws BaseException
+   */
+  private void validateActivityList(Request request) throws BaseException {
+<span class="nc bnc" id="L52" title="All 2 branches missed.">    if (request.getRequest().containsKey(JsonKey.ACTIVITIES)) {</span>
+<span class="nc" id="L53">      checkDataTypeOfParam(</span>
+<span class="nc" id="L54">          request.getRequest().get(JsonKey.ACTIVITIES),</span>
+          JsonKey.ACTIVITIES,
+          JsonKey.REQUEST,
+<span class="nc" id="L57">          Map.class,request.getContext());</span>
+<span class="nc" id="L58">      Map&lt;String, Object&gt; activityList =</span>
+<span class="nc" id="L59">          (Map&lt;String, Object&gt;) request.getRequest().get(JsonKey.ACTIVITIES);</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">      if (MapUtils.isNotEmpty(activityList)) {</span>
+        // validate add activity list
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (activityList.containsKey(JsonKey.ADD)) {</span>
+<span class="nc" id="L63">          checkDataTypeOfParam(</span>
+<span class="nc" id="L64">              activityList.get(JsonKey.ADD),</span>
+              JsonKey.ADD,
+              JsonKey.REQUEST + &quot;.&quot; + JsonKey.ACTIVITIES,
+<span class="nc" id="L67">              List.class,request.getContext());</span>
+<span class="nc" id="L68">          List&lt;Map&lt;String, Object&gt;&gt; addActivity =</span>
+<span class="nc" id="L69">              (List&lt;Map&lt;String, Object&gt;&gt;) activityList.get(JsonKey.ADD);</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">          if (CollectionUtils.isNotEmpty(addActivity)) {</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">            for (Map&lt;String, Object&gt; activity : addActivity) {</span>
+<span class="nc" id="L72">              ValidationUtil.validateMandatoryParamsWithType(</span>
+                  activity,
+<span class="nc" id="L74">                  Lists.newArrayList(JsonKey.ID, JsonKey.TYPE),</span>
+                  String.class,
+                  true,
+                  JsonKey.REQUEST
+                      + &quot;.&quot;
+                      + JsonKey.ACTIVITIES
+                      + &quot;.&quot;
+                      + JsonKey.ADD
+                      + &quot;[&quot;
+<span class="nc" id="L83">                      + addActivity.indexOf(activity)</span>
+<span class="nc" id="L84">                      + &quot;]&quot;,request.getContext());</span>
+<span class="nc" id="L85">            }</span>
+          }
+        }
+        // validate remove list
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        if (activityList.containsKey(JsonKey.REMOVE)) {</span>
+<span class="nc" id="L90">          checkDataTypeOfParam(</span>
+<span class="nc" id="L91">              activityList.get(JsonKey.REMOVE),</span>
+              JsonKey.REMOVE,
+              JsonKey.REQUEST + &quot;.&quot; + JsonKey.ACTIVITIES,
+<span class="nc" id="L94">              List.class,request.getContext());</span>
+        }
+      }
+    }
+<span class="nc" id="L98">  }</span>
+
+  private void checkDataTypeOfParam(Object object, String key, String parentKey, Class type,Map&lt;String,Object&gt; reqCOntext) {
+<span class="nc bnc" id="L101" title="All 4 branches missed.">    if (ObjectUtils.isNotEmpty(object) &amp;&amp; !(ValidationUtil.isInstanceOf(object.getClass(), type))) {</span>
+<span class="nc" id="L102">      logger.error(reqCOntext,&quot;validateMandatoryParamsOfStringType:incorrect request provided&quot;);</span>
+<span class="nc" id="L103">      throw new ValidationException.ParamDataTypeError(parentKey + &quot;.&quot; + key, type.getName());</span>
+    }
+<span class="nc" id="L105">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

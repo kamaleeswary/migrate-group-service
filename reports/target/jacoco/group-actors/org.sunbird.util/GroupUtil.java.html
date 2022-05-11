@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GroupUtil.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">GroupUtil.java</span></div><h1>GroupUtil.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.models.GroupResponse;
+import org.sunbird.models.Member;
+import org.sunbird.models.MemberResponse;
+import org.sunbird.util.helper.PropertiesCache;
+
+<span class="nc" id="L18">public class GroupUtil {</span>
+
+<span class="nc" id="L20">  private static LoggerUtil logger = new LoggerUtil(GroupUtil.class);</span>
+  /**
+   * Update Group details in the group of a user
+   *
+   * @param groups
+   * @param groupDetailsMap
+   */
+  public static void updateGroupDetails(
+      List&lt;GroupResponse&gt; groups, Map&lt;String, Map&lt;String, Object&gt;&gt; groupDetailsMap) {
+<span class="nc bnc" id="L29" title="All 2 branches missed.">    if (!groups.isEmpty()) {</span>
+<span class="nc bnc" id="L30" title="All 2 branches missed.">      for (GroupResponse group : groups) {</span>
+<span class="nc" id="L31">        Map&lt;String, Object&gt; groupDetails = groupDetailsMap.get(group.getId());</span>
+<span class="nc" id="L32">        group.setMemberRole((String) groupDetails.get(JsonKey.ROLE));</span>
+<span class="nc" id="L33">        group.setVisited((Boolean) groupDetails.get(JsonKey.VISITED));</span>
+<span class="nc" id="L34">      }</span>
+    }
+<span class="nc" id="L36">  }</span>
+
+  public static String convertTimestampToUTC(long timeInMs) {
+<span class="nc" id="L39">    Date date = new Date(timeInMs);</span>
+<span class="nc" id="L40">    SimpleDateFormat simpleDateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss:SSSZ&quot;);</span>
+<span class="nc" id="L41">    simpleDateFormat.setLenient(false);</span>
+<span class="nc" id="L42">    return simpleDateFormat.format(date);</span>
+  }
+
+  public static String convertDateToUTC(Date date) {
+<span class="nc" id="L46">    SimpleDateFormat simpleDateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss:SSSZ&quot;);</span>
+<span class="nc" id="L47">    simpleDateFormat.setLenient(false);</span>
+<span class="nc" id="L48">    return simpleDateFormat.format(date);</span>
+  }
+
+  public static Map&lt;SearchServiceUtil, Map&lt;String, String&gt;&gt; groupActivityIdsBySearchUtilClass(
+      List&lt;Map&lt;String, Object&gt;&gt; activities, Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L53">    logger.info(reqContext,&quot;groupActivityIdsBySearchUtilClass&quot;);</span>
+<span class="nc" id="L54">    Map&lt;SearchServiceUtil, Map&lt;String, String&gt;&gt; idClassTypeMap = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">    for (Map&lt;String, Object&gt; activity : activities) {</span>
+<span class="nc" id="L56">      SearchServiceUtil searchUtil =</span>
+<span class="nc" id="L57">          ActivityConfigReader.getServiceUtilClassName((String) activity.get(JsonKey.TYPE));</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">      if (null != searchUtil) {</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (idClassTypeMap.containsKey(searchUtil)) {</span>
+<span class="nc" id="L60">          Map&lt;String, String&gt; idActivityMap = idClassTypeMap.get(searchUtil);</span>
+<span class="nc" id="L61">          idActivityMap.put((String) activity.get(JsonKey.ID), (String) activity.get(JsonKey.TYPE));</span>
+<span class="nc" id="L62">        } else {</span>
+<span class="nc" id="L63">          Map&lt;String, String&gt; idActivityMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L64">          idActivityMap.put((String) activity.get(JsonKey.ID), (String) activity.get(JsonKey.TYPE));</span>
+<span class="nc" id="L65">          idClassTypeMap.put(searchUtil, idActivityMap);</span>
+        }
+      }
+<span class="nc" id="L68">    }</span>
+<span class="nc" id="L69">    return idClassTypeMap;</span>
+  }
+
+  public static boolean checkMaxGroupLimit(List&lt;Map&lt;String, Object&gt;&gt; userGroupsList, String userId) {
+<span class="nc" id="L73">    int groupCount = 0;</span>
+<span class="nc" id="L74">    boolean maxGroupLimitExceed =false;</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(userGroupsList)) {</span>
+<span class="nc" id="L76">      Map&lt;String, Object&gt; userInfo =</span>
+          userGroupsList
+<span class="nc" id="L78">              .stream()</span>
+<span class="nc" id="L79">              .filter(userMap -&gt; userId.equals((String) userMap.get(JsonKey.USER_ID)))</span>
+<span class="nc" id="L80">              .findFirst()</span>
+<span class="nc" id="L81">              .orElse(null);</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">      if (MapUtils.isNotEmpty(userInfo)) {</span>
+<span class="nc" id="L83">        groupCount = ((Set&lt;String&gt;) userInfo.get(JsonKey.GROUP_ID)).size();</span>
+      }
+    }
+    int maxGroupLimit =
+<span class="nc" id="L87">        Integer.parseInt(PropertiesCache.getInstance().getProperty(JsonKey.MAX_GROUP_LIMIT));</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">    if (groupCount &gt;= maxGroupLimit) {</span>
+<span class="nc" id="L89">      maxGroupLimitExceed = true;</span>
+    }
+<span class="nc" id="L91">    return maxGroupLimitExceed;</span>
+  }
+
+  public static boolean checkMaxActivityLimit(
+      Integer totalActivityCount) {
+<span class="nc" id="L96">    boolean isExceeded = false;</span>
+    int activityLimit =
+<span class="nc" id="L98">        Integer.parseInt(PropertiesCache.getInstance().getProperty(JsonKey.MAX_ACTIVITY_LIMIT));</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">    if (totalActivityCount &gt; activityLimit) {</span>
+<span class="nc" id="L100">      isExceeded = true;</span>
+    }
+<span class="nc" id="L102">    return isExceeded;</span>
+  }
+
+  public static boolean checkMaxMemberLimit(
+      int totalMemberCount) {
+<span class="nc" id="L107">    boolean isExceeded = false;</span>
+    int memberLimit =
+<span class="nc" id="L109">        Integer.parseInt(</span>
+<span class="nc" id="L110">            PropertiesCache.getInstance().getProperty(JsonKey.MAX_GROUP_MEMBERS_LIMIT));</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">    if (totalMemberCount &gt; memberLimit) {</span>
+<span class="nc" id="L112">      isExceeded = true;</span>
+    }
+<span class="nc" id="L114">    return isExceeded;</span>
+  }
+
+  public static int totalMemberCount(Map memberOperationMap, List&lt;MemberResponse&gt; membersInDB) {
+<span class="nc bnc" id="L118" title="All 2 branches missed.">    int totalMemberCount = (null != membersInDB ? membersInDB.size() : 0);</span>
+
+<span class="nc" id="L120">    List&lt;Map&lt;String, Object&gt;&gt; memberAddList =</span>
+<span class="nc" id="L121">        (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD);</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(memberAddList)) {</span>
+<span class="nc" id="L123">      totalMemberCount += memberAddList.size();</span>
+    }
+
+<span class="nc" id="L126">    List&lt;Map&lt;String, Object&gt;&gt; memberRemoveList =</span>
+<span class="nc" id="L127">        (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.REMOVE);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(memberRemoveList)) {</span>
+<span class="nc" id="L129">      totalMemberCount -= memberRemoveList.size();</span>
+    }
+<span class="nc" id="L131">    return totalMemberCount;</span>
+  }
+
+  public static List&lt;String&gt; getMemberIdList(List&lt;Member&gt; member) {
+<span class="nc" id="L135">    List&lt;String&gt; members =</span>
+<span class="nc" id="L136">        member.stream().map(data -&gt; data.getUserId()).collect(Collectors.toList());</span>
+<span class="nc" id="L137">    return members;</span>
+  }
+
+  public static List&lt;String&gt; getMemberIdListFromMap(List&lt;Map&lt;String, Object&gt;&gt; member) {
+<span class="nc" id="L141">    List&lt;String&gt; members =</span>
+        member
+<span class="nc" id="L143">            .stream()</span>
+<span class="nc" id="L144">            .map(data -&gt; (String) data.get(JsonKey.USER_ID))</span>
+<span class="nc" id="L145">            .collect(Collectors.toList());</span>
+<span class="nc" id="L146">    return members;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

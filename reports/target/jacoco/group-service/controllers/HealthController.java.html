@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>HealthController.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-service</a> &gt; <a href="index.source.html" class="el_package">controllers</a> &gt; <span class="el_source">HealthController.java</span></div><h1>HealthController.java</h1><pre class="source lang-java linenums">package controllers;
+
+import java.util.concurrent.CompletionStage;
+
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.request.Request;
+import play.mvc.Http;
+import play.mvc.Result;
+
+/** This controller class will responsible to check health of the services. */
+<span class="nc" id="L11">public class HealthController extends BaseController {</span>
+  // Service name must be &quot;service&quot; for the DevOps monitoring.
+  private static final String service = &quot;service&quot;;
+
+  /**
+   * This action method is responsible for checking Health.
+   *
+   * @return a CompletableFuture of success response
+   */
+  public CompletionStage&lt;Result&gt; getHealth() throws BaseException {
+<span class="nc" id="L21">    Request req = new Request(&quot;health&quot;); // Get API</span>
+<span class="nc" id="L22">    return handleRequest(req);</span>
+  }
+
+  /**
+   * This action method is responsible to check service health
+   *
+   * @return a CompletableFuture of success response
+   */
+  public CompletionStage&lt;Result&gt; getServiceHealth(String serviceName, Http.Request req)
+      throws BaseException {
+<span class="nc" id="L32">    Request request = createSBRequest(req, &quot;health&quot;);</span>
+<span class="nc" id="L33">    request.getContext().put(&quot;service&quot;, serviceName);</span>
+<span class="nc" id="L34">    return handleRequest(request) ;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

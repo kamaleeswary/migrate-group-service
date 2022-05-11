@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GroupNotificationActor.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.actors</a> &gt; <span class="el_source">GroupNotificationActor.java</span></div><h1>GroupNotificationActor.java</h1><pre class="source lang-java linenums">package org.sunbird.actors;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.actor.core.ActorConfig;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.common.util.Notification;
+import org.sunbird.models.MemberResponse;
+import org.sunbird.notifications.INotificationHandler;
+import org.sunbird.notifications.NotificationFactory;
+import org.sunbird.service.UserService;
+import org.sunbird.service.UserServiceImpl;
+import org.sunbird.util.GroupRequestHandler;
+import org.sunbird.util.LoggerUtil;
+import org.sunbird.util.NotificationService;
+import org.sunbird.util.helper.PropertiesCache;
+
+import java.text.MessageFormat;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@ActorConfig(
+        tasks = {&quot;sendNotifications&quot;},
+        asyncTasks = {},
+        dispatcher = &quot;group-dispatcher&quot;
+)
+<span class="nc" id="L30">public class GroupNotificationActor extends BaseActor{</span>
+
+<span class="nc" id="L32">    private LoggerUtil logger = new LoggerUtil(GroupNotificationActor.class);</span>
+
+    @Override
+    public void onReceive(Request request) throws Throwable {
+
+<span class="nc" id="L37">        logger.info(request.getContext(), MessageFormat.format(&quot;Notification Actor: sending notifications for &quot;,request.getOperation()));</span>
+<span class="nc" id="L38">        String updatedBy = new GroupRequestHandler().getRequestedBy(request);</span>
+<span class="nc" id="L39">        Map&lt;String,Map&lt;String,Object&gt;&gt; userDetails = getUserDetails(request);</span>
+<span class="nc" id="L40">        String channelEnabled = PropertiesCache.getInstance().getProperty(JsonKey.ENABLE_TENANT_CONFIGURATION);</span>
+<span class="nc" id="L41">        logger.info(request.getContext(),MessageFormat.format(&quot;Notification Enabled for Tenants:{0} &quot;,channelEnabled));</span>
+        //If notification is available for all channel, the value will be *
+<span class="nc bnc" id="L43" title="All 2 branches missed.">        if(!JsonKey.ASTERISK.equals(channelEnabled)){</span>
+<span class="nc" id="L44">            removeDisabledChannelMembers(request, userDetails,channelEnabled);</span>
+        }
+<span class="nc" id="L46">        INotificationHandler notificationHandler = NotificationFactory.getNotificationHandler(request.getOperation());</span>
+<span class="nc" id="L47">        Map&lt;String, Object&gt; user = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if(null != updatedBy) {</span>
+<span class="nc" id="L49">           user.put(JsonKey.ID,updatedBy);</span>
+<span class="nc" id="L50">           user.put(JsonKey.TYPE,JsonKey.USER);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">           user.put(JsonKey.NAME,userDetails.get(updatedBy) != null?userDetails.get(updatedBy).get(JsonKey.NAME):null);</span>
+        }else {
+<span class="nc" id="L53">            user.put(JsonKey.ID, JsonKey.GROUPS_SERVICE);</span>
+<span class="nc" id="L54">            user.put(JsonKey.TYPE, JsonKey.SYSTEM);</span>
+        }
+<span class="nc" id="L56">        List&lt;Notification&gt; notifications = notificationHandler.getNotificationObj(request,user);</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        if(CollectionUtils.isNotEmpty(notifications)){</span>
+<span class="nc" id="L58">            sendNotifications(notifications, request.getContext());</span>
+        }
+<span class="nc" id="L60">        Response response = new Response();</span>
+<span class="nc" id="L61">        response.put(JsonKey.RESULT,&quot;ok&quot;);</span>
+<span class="nc" id="L62">        sender().tell(response, self());</span>
+<span class="nc" id="L63">    }</span>
+
+    /**
+     * Remove user from getting notification does not belong to the state for which feature is enabled
+     * @param request
+     * @param userDetails
+     * @param channel
+     */
+    private void removeDisabledChannelMembers(Request request, Map&lt;String, Map&lt;String, Object&gt;&gt; userDetails, String channel) {
+        // Remove already existing members not belonging to enabled tenant
+<span class="nc" id="L73">        List&lt;MemberResponse&gt; members = (List&lt;MemberResponse&gt;) request.getRequest().get(JsonKey.MEMBERS);</span>
+<span class="nc" id="L74">        Iterator&lt;MemberResponse&gt; itr = members.iterator();</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        while(itr.hasNext()){</span>
+<span class="nc" id="L76">            MemberResponse member = itr.next();</span>
+<span class="nc" id="L77">            Map&lt;String,Object&gt; memberInfo = userDetails.get(member.getUserId());</span>
+<span class="nc bnc" id="L78" title="All 4 branches missed.">            if(MapUtils.isEmpty(memberInfo) || !channel.contains((String)memberInfo.get(JsonKey.CHANNEL))){</span>
+<span class="nc" id="L79">                itr.remove();</span>
+            }
+<span class="nc" id="L81">        }</span>
+<span class="nc" id="L82">        request.getRequest().put(JsonKey.MEMBERS,members);</span>
+        // Remove newly added members not belonging to enabled channel
+<span class="nc" id="L84">        Map&lt;String,Object&gt; reqObj = (Map&lt;String,Object&gt;)request.getRequest().get(JsonKey.REQUEST);</span>
+<span class="nc" id="L85">        Map memberOperationMap = (Map)reqObj.get(JsonKey.MEMBERS);</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if(MapUtils.isNotEmpty(memberOperationMap)){</span>
+<span class="nc" id="L87">            List&lt;Map&lt;String,Object&gt;&gt; memberTobeAdded = (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if(CollectionUtils.isNotEmpty(memberTobeAdded)) {</span>
+<span class="nc" id="L89">                Iterator&lt;Map&lt;String, Object&gt;&gt; memberAddItr = memberTobeAdded.iterator();</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                while (memberAddItr.hasNext()) {</span>
+<span class="nc" id="L91">                    Map&lt;String, Object&gt; member = memberAddItr.next();</span>
+<span class="nc" id="L92">                    Map&lt;String, Object&gt; memberInfo = userDetails.get(member.get(JsonKey.USER_ID));</span>
+<span class="nc bnc" id="L93" title="All 4 branches missed.">                    if (MapUtils.isEmpty(memberInfo) || !channel.contains((String) memberInfo.get(JsonKey.CHANNEL))) {</span>
+<span class="nc" id="L94">                        memberAddItr.remove();</span>
+                    }
+<span class="nc" id="L96">                }</span>
+            }
+        }
+
+<span class="nc" id="L100">    }</span>
+    /**
+     * Get User Details from user service
+     * @param request
+     *
+     * @return
+     */
+
+    private Map&lt;String,Map&lt;String,Object&gt;&gt; getUserDetails(Request request) {
+<span class="nc" id="L109">        Map&lt;String,Map&lt;String,Object&gt;&gt; userDetails  = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L110">        List&lt;String&gt; users = getMemberIds(request);</span>
+<span class="nc" id="L111">        UserService userService = UserServiceImpl.getInstance();</span>
+<span class="nc" id="L112">        Response response = userService.searchUserByIds(users, request.getContext());</span>
+<span class="nc bnc" id="L113" title="All 4 branches missed.">        if (null != response &amp;&amp; null != response.getResult()) {</span>
+<span class="nc" id="L114">            Map&lt;String, Object&gt; userRes =</span>
+<span class="nc" id="L115">                    (Map&lt;String, Object&gt;) response.getResult().get(JsonKey.RESPONSE);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            if (null != userRes) {</span>
+<span class="nc" id="L117">                List&lt;Map&lt;String, Object&gt;&gt; userLists =</span>
+<span class="nc" id="L118">                        (List&lt;Map&lt;String, Object&gt;&gt;) userRes.get(JsonKey.CONTENT);</span>
+
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                if (CollectionUtils.isNotEmpty(userLists)) {</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                    for (Map&lt;String,Object&gt; userInfo: userLists) {</span>
+                        String firstName =
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                                StringUtils.isNotEmpty((String) userInfo.get(JsonKey.FIRSTNAME))</span>
+<span class="nc" id="L124">                                        ? (String) userInfo.get(JsonKey.FIRSTNAME)</span>
+<span class="nc" id="L125">                                        : &quot;&quot;;</span>
+
+                        String lastName =
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                                StringUtils.isNotEmpty((String) userInfo.get(JsonKey.LASTNAME))</span>
+<span class="nc" id="L129">                                        ? &quot; &quot; + (String) userInfo.get(JsonKey.LASTNAME)</span>
+<span class="nc" id="L130">                                        : &quot;&quot;;</span>
+<span class="nc" id="L131">                        userInfo.put(JsonKey.NAME, firstName+lastName);</span>
+<span class="nc" id="L132">                        userDetails.put((String) userInfo.get(JsonKey.ID), userInfo);</span>
+<span class="nc" id="L133">                    }</span>
+
+                }
+            }
+
+        }
+<span class="nc" id="L139">        return userDetails;</span>
+    }
+
+    //Get user ids to fetch details
+    private List&lt;String&gt; getMemberIds(Request request) {
+<span class="nc" id="L144">        List&lt;MemberResponse&gt; members = (List&lt;MemberResponse&gt;) request.getRequest().get(JsonKey.MEMBERS);</span>
+<span class="nc" id="L145">        Map&lt;String,Object&gt; reqObj = (Map&lt;String,Object&gt;)request.getRequest().get(JsonKey.REQUEST);</span>
+<span class="nc" id="L146">        Map memberOperationMap = (Map)reqObj.get(JsonKey.MEMBERS);</span>
+<span class="nc" id="L147">        List&lt;String&gt; users = members.stream().map(MemberResponse::getUserId).collect(Collectors.toList());</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if(MapUtils.isNotEmpty(memberOperationMap)) {</span>
+<span class="nc" id="L149">            List&lt;Map&lt;String, Object&gt;&gt; memberTobeAdded = (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD);</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">            if (CollectionUtils.isNotEmpty(memberTobeAdded)) {</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                for (Map&lt;String, Object&gt; itrMap : memberTobeAdded) {</span>
+<span class="nc" id="L152">                    users.add((String) itrMap.get(JsonKey.USER_ID));</span>
+<span class="nc" id="L153">                }</span>
+            }
+        }
+<span class="nc" id="L156">        return users;</span>
+    }
+
+    private void sendNotifications(List&lt;Notification&gt; notifications, Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L160">        NotificationService notificationService = new NotificationService();</span>
+<span class="nc" id="L161">        notificationService.sendSyncNotification(notifications, reqContext);</span>
+
+<span class="nc" id="L163">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

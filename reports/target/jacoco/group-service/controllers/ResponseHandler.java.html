@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ResponseHandler.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-service</a> &gt; <a href="index.source.html" class="el_package">controllers</a> &gt; <span class="el_source">ResponseHandler.java</span></div><h1>ResponseHandler.java</h1><pre class="source lang-java linenums">package controllers;
+
+import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.http.HttpStatus;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.common.response.ResponseFactory;
+import org.sunbird.telemetry.util.TelemetryEvents;
+import org.sunbird.telemetry.util.TelemetryWriter;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.LoggerUtil;
+import play.libs.Json;
+import play.mvc.Http;
+import play.mvc.Result;
+import play.mvc.Results;
+import utils.module.PrintEntryExitLog;
+import utils.module.RequestMapper;
+
+/**
+ * this class is used to handle the request and ask from actor and return response on the basis of
+ * success and failure to user.
+ */
+public class ResponseHandler {
+<span class="nc" id="L30">  private static LoggerUtil logger = new LoggerUtil(ResponseHandler.class);</span>
+
+  private ResponseHandler() {}
+
+  /**
+   * This method will handle all the failure response of Api calls.
+   *
+   * @param exception
+   * @return
+   */
+  public static Result handleFailureResponse(Object exception, Request request) {
+    Result result;
+<span class="nc" id="L42">    Response response = ResponseFactory.getFailureMessage(exception, request);</span>
+<span class="nc bnc" id="L43" title="All 3 branches missed.">    switch (response.getResponseCode()) {</span>
+      case HttpStatus.SC_BAD_REQUEST:
+<span class="nc" id="L45">        result = Results.badRequest(Json.toJson(response));</span>
+<span class="nc" id="L46">        break;</span>
+      case HttpStatus.SC_UNAUTHORIZED:
+<span class="nc" id="L48">        result = Results.unauthorized(Json.toJson(response));</span>
+<span class="nc" id="L49">        break;</span>
+      default:
+<span class="nc" id="L51">        result = Results.internalServerError(Json.toJson(response));</span>
+        break;
+    }
+<span class="nc" id="L54">    logTelemetry(response, request);</span>
+<span class="nc" id="L55">    PrintEntryExitLog.printExitLogOnFailure(request, (BaseException) exception);</span>
+<span class="nc" id="L56">    return result;</span>
+  }
+  /**
+   * This method will handle all the failure response of Api calls.
+   *
+   * @param
+   * @return
+   */
+  public static Result handleFailureResponse(Object exception, Http.Request request) {
+<span class="nc" id="L65">    RequestMapper requestMapper = new RequestMapper();</span>
+    Result result;
+<span class="nc" id="L67">    Request sbReq = requestMapper.createSBRequest(request);</span>
+<span class="nc" id="L68">    result = handleFailureResponse(exception, sbReq);</span>
+<span class="nc" id="L69">    return result;</span>
+  }
+
+  /**
+   * this method will divert the response on the basis of success and failure
+   *
+   * @param object
+   * @return
+   */
+  public static Result handleResponse(Object object, Request request) {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">    if (object instanceof Response) {</span>
+<span class="nc" id="L80">      return handleSuccessResponse((Response) object, request);</span>
+    }
+<span class="nc" id="L82">    return handleFailureResponse(object, request);</span>
+  }
+
+  private static Result handleSuccessResponse(Response response, Request request) {
+<span class="nc" id="L86">    String apiId = ResponseFactory.getApiId(request.getPath());</span>
+<span class="nc" id="L87">    response.setId(apiId);</span>
+<span class="nc" id="L88">    response.setVer(JsonKey.API_VERSION);</span>
+<span class="nc" id="L89">    response.setTs(ResponseFactory.getCurrentDate());</span>
+<span class="nc" id="L90">    logTelemetry(response, request);</span>
+<span class="nc" id="L91">    PrintEntryExitLog.printExitLogOnSuccessResponse(request, response);</span>
+<span class="nc" id="L92">    return Results.ok(Json.toJson(response));</span>
+  }
+
+  static void logTelemetry(Response response, Request request) {
+<span class="nc bnc" id="L96" title="All 2 branches missed.">    if (null != request.getPath()</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        &amp;&amp; !(request.getPath().contains(&quot;/health&quot;)</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            || request.getPath().contains(&quot;/service/health&quot;))) {</span>
+      try {
+        long startTime =
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            null != request.getTs() ? Long.parseLong(request.getTs()) : System.currentTimeMillis();</span>
+<span class="nc" id="L102">        long endTime = System.currentTimeMillis();</span>
+
+<span class="nc" id="L104">        long requestTime = endTime - startTime;</span>
+<span class="nc" id="L105">        ObjectMapper objectMapper = new ObjectMapper();</span>
+<span class="nc" id="L106">        org.sunbird.common.request.Request req = new org.sunbird.common.request.Request();</span>
+<span class="nc" id="L107">        Map&lt;String, Object&gt; params = new WeakHashMap&lt;&gt;();</span>
+<span class="nc" id="L108">        params.put(JsonKey.URL, request.getPath());</span>
+<span class="nc" id="L109">        params.put(JsonKey.LOG_TYPE, JsonKey.API_ACCESS);</span>
+<span class="nc" id="L110">        params.put(JsonKey.MESSAGE, &quot;&quot;);</span>
+<span class="nc" id="L111">        params.put(JsonKey.METHOD, request.getOperation());</span>
+<span class="nc" id="L112">        params.put(JsonKey.DURATION, requestTime);</span>
+<span class="nc" id="L113">        params.put(JsonKey.STATUS, response.getResponseCode());</span>
+<span class="nc" id="L114">        params.put(JsonKey.LOG_LEVEL, JsonKey.INFO);</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        params.putAll(null != response.getParams()? objectMapper.convertValue(response.getParams(),Map.class): new HashMap&lt;&gt;());</span>
+<span class="nc" id="L116">        req.setRequest(</span>
+<span class="nc" id="L117">            generateTelemetryRequestForController(</span>
+<span class="nc" id="L118">                TelemetryEvents.LOG.getName(), params, request.getContext()));</span>
+<span class="nc" id="L119">        TelemetryWriter.write(req);</span>
+<span class="nc" id="L120">      } catch (Exception ex) {</span>
+<span class="nc" id="L121">        logger.info(request.getContext(), MessageFormat.format(&quot;AccessLogFilter:apply Exception in writing telemetry: {0}&quot;, ex));</span>
+<span class="nc" id="L122">      }</span>
+    }
+<span class="nc" id="L124">  }</span>
+
+  private static Map&lt;String, Object&gt; generateTelemetryRequestForController(
+      String eventType, Map&lt;String, Object&gt; params, Map&lt;String, Object&gt; context) {
+
+<span class="nc" id="L129">    Map&lt;String, Object&gt; map = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L130">    map.put(JsonKey.TELEMETRY_EVENT_TYPE, eventType);</span>
+<span class="nc" id="L131">    map.put(JsonKey.CONTEXT, context);</span>
+<span class="nc" id="L132">    map.put(JsonKey.PARAMS, params);</span>
+<span class="nc" id="L133">    return map;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GroupDaoImpl.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.dao</a> &gt; <span class="el_source">GroupDaoImpl.java</span></div><h1>GroupDaoImpl.java</h1><pre class="source lang-java linenums">package org.sunbird.dao;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.Timestamp;
+import java.util.Calendar;
+import java.util.List;
+import java.util.Map;
+import org.sunbird.cassandra.CassandraOperation;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.helper.ServiceFactory;
+import org.sunbird.models.Group;
+import org.sunbird.common.response.Response;
+import org.sunbird.util.DBUtil;
+import org.sunbird.common.util.JsonKey;
+
+<span class="nc" id="L17">public class GroupDaoImpl implements GroupDao {</span>
+  private static final String GROUP_TABLE_NAME = &quot;group&quot;;
+
+<span class="nc" id="L20">  private CassandraOperation cassandraOperation = ServiceFactory.getInstance();</span>
+<span class="nc" id="L21">  private ObjectMapper mapper = new ObjectMapper();</span>
+<span class="nc" id="L22">  private static GroupDao groupDao = null;</span>
+
+  public static GroupDao getInstance() {
+<span class="nc bnc" id="L25" title="All 2 branches missed.">    if (groupDao == null) {</span>
+<span class="nc" id="L26">      groupDao = new GroupDaoImpl();</span>
+    }
+<span class="nc" id="L28">    return groupDao;</span>
+  }
+
+  @Override
+  public String createGroup(Group groupObj, Map&lt;String,Object&gt; reqContext) throws BaseException {
+
+<span class="nc" id="L34">    Map&lt;String, Object&gt; map =</span>
+<span class="nc" id="L35">        mapper.convertValue(groupObj, new TypeReference&lt;Map&lt;String, Object&gt;&gt;() {});</span>
+<span class="nc" id="L36">    map.put(JsonKey.CREATED_ON, new Timestamp(Calendar.getInstance().getTime().getTime()));</span>
+    // need to fix , as mapper is converting set to arrayList
+<span class="nc" id="L38">    map.put(JsonKey.ACTIVITIES, groupObj.getActivities());</span>
+<span class="nc" id="L39">    cassandraOperation.insertRecord(DBUtil.KEY_SPACE_NAME, GROUP_TABLE_NAME, map, reqContext);</span>
+<span class="nc" id="L40">    return (String) map.get(JsonKey.ID);</span>
+  }
+
+  @Override
+  public Response readGroup(String groupId, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L45">    Response responseObj =</span>
+<span class="nc" id="L46">        cassandraOperation.getRecordById(DBUtil.KEY_SPACE_NAME, GROUP_TABLE_NAME, groupId, reqContext);</span>
+<span class="nc" id="L47">    return responseObj;</span>
+  }
+
+  @Override
+  public Response readGroups(List&lt;String&gt; groupIds, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L52">    Response responseObj =</span>
+<span class="nc" id="L53">        cassandraOperation.getRecordsByPrimaryKeys(</span>
+            DBUtil.KEY_SPACE_NAME, GROUP_TABLE_NAME, groupIds, JsonKey.ID, reqContext);
+<span class="nc" id="L55">    return responseObj;</span>
+  }
+
+  @Override
+  public Response updateGroup(Group groupObj, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L60">    Map&lt;String, Object&gt; map = mapper.convertValue(groupObj, Map.class);</span>
+<span class="nc" id="L61">    map.put(JsonKey.UPDATED_ON, new Timestamp(Calendar.getInstance().getTime().getTime()));</span>
+<span class="nc" id="L62">    Response responseObj =</span>
+<span class="nc" id="L63">        cassandraOperation.updateRecord(DBUtil.KEY_SPACE_NAME, GROUP_TABLE_NAME, map, reqContext);</span>
+<span class="nc" id="L64">    return responseObj;</span>
+  }
+
+  @Override
+  public Response deleteGroup(String groupId, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L69">    Response responseObj =</span>
+<span class="nc" id="L70">        cassandraOperation.deleteRecord(DBUtil.KEY_SPACE_NAME, GROUP_TABLE_NAME, groupId, reqContext);</span>
+<span class="nc" id="L71">    return responseObj;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

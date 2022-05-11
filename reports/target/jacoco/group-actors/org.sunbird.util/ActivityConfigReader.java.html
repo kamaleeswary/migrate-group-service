@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ActivityConfigReader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">ActivityConfigReader.java</span></div><h1>ActivityConfigReader.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.sunbird.common.util.JsonKey;
+
+<span class="nc" id="L14">public class ActivityConfigReader {</span>
+
+<span class="nc" id="L16">  private static LoggerUtil logger = new LoggerUtil(ActivityConfigReader.class);</span>
+
+  private static final String ACTIVITY_CONFIG_FILE = &quot;activityConfig.json&quot;;
+
+<span class="nc" id="L20">  private static Map&lt;String, SearchServiceUtil&gt; activityServiceConfigMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L21">  private static Map&lt;SearchServiceUtil, List&lt;String&gt;&gt; serviceTypeFieldsConfigMap = new HashMap&lt;&gt;();</span>
+
+  public static void initialize() {
+<span class="nc" id="L24">    InputStream in =</span>
+<span class="nc" id="L25">        ActivityConfigReader.class.getClassLoader().getResourceAsStream(ACTIVITY_CONFIG_FILE);</span>
+
+    try {
+<span class="nc" id="L28">      loadActivityConfigMap(in);</span>
+<span class="nc" id="L29">    } catch (IOException | InstantiationException e) {</span>
+<span class="nc" id="L30">      logger.error(&quot;File does not exist&quot;,e);</span>
+<span class="nc" id="L31">    } catch (ClassNotFoundException e) {</span>
+<span class="nc" id="L32">      logger.error(&quot;Service class not configured&quot; ,e);</span>
+<span class="nc" id="L33">    } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L34">      logger.error(&quot;Illegal action&quot; , e);</span>
+<span class="nc" id="L35">    }</span>
+<span class="nc" id="L36">  }</span>
+
+  static void loadActivityConfigMap(InputStream in)
+      throws IOException, ClassNotFoundException, IllegalAccessException, InstantiationException {
+<span class="nc bnc" id="L40" title="All 2 branches missed.">    if (null != in) {</span>
+<span class="nc" id="L41">      JsonParser jsonParser = new JsonParser();</span>
+<span class="nc" id="L42">      JsonObject jsonObject = (JsonObject) jsonParser.parse(new InputStreamReader(in, &quot;UTF-8&quot;));</span>
+<span class="nc" id="L43">      Map&lt;String, Object&gt; activityConfigMap = new Gson().fromJson(jsonObject, Map.class);</span>
+<span class="nc" id="L44">      List&lt;Map&lt;String, Object&gt;&gt; activitiesConfigList =</span>
+<span class="nc" id="L45">          (List&lt;Map&lt;String, Object&gt;&gt;) activityConfigMap.get(JsonKey.ACTIVITIES);</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">      for (Map&lt;String, Object&gt; config : activitiesConfigList) {</span>
+<span class="nc" id="L47">        List&lt;String&gt; activityTypeList = (List&lt;String&gt;) config.get(JsonKey.TYPE);</span>
+<span class="nc" id="L48">        Class&lt;?&gt; classType = Class.forName((String) config.get(&quot;serviceClass&quot;));</span>
+<span class="nc" id="L49">        SearchServiceUtil searchServiceUtil = (SearchServiceUtil) classType.newInstance();</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        for (String activityType : activityTypeList) {</span>
+<span class="nc" id="L51">          activityServiceConfigMap.put(activityType, searchServiceUtil);</span>
+<span class="nc" id="L52">        }</span>
+<span class="nc" id="L53">        serviceTypeFieldsConfigMap.put(</span>
+<span class="nc" id="L54">            searchServiceUtil, (List&lt;String&gt;) config.get(JsonKey.FIELDS));</span>
+<span class="nc" id="L55">      }</span>
+<span class="nc" id="L56">    } else {</span>
+<span class="nc" id="L57">      throw new IOException(&quot;Config file does not exist&quot;);</span>
+    }
+<span class="nc" id="L59">  }</span>
+
+  public static SearchServiceUtil getServiceUtilClassName(String activityType) {
+<span class="nc" id="L62">    return activityServiceConfigMap.get(activityType);</span>
+  }
+
+  public static List&lt;String&gt; getFieldsLists(SearchServiceUtil objectType) {
+<span class="nc" id="L66">    return serviceTypeFieldsConfigMap.get(objectType);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

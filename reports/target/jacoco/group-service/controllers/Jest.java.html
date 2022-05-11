@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>Jest.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-service</a> &gt; <a href="index.source.html" class="el_package">controllers</a> &gt; <span class="el_source">Jest.java</span></div><h1>Jest.java</h1><pre class="source lang-java linenums">package controllers;
+
+import java.util.concurrent.CompletionStage;
+import play.mvc.Http;
+import play.mvc.Result;
+import org.sunbird.common.request.Request;
+import org.sunbird.models.ActorOperations;
+import play.mvc.Results;
+import play.libs.Json;
+import static controllers.ResponseHandler.handleResponse;
+import org.sunbird.common.exception.ValidationException;
+
+
+<span class="nc" id="L14">public class Jest extends BaseController {</span>
+    public Result testGroup(Http.Request req) {
+<span class="nc" id="L16">        Request request = apiTest(req, ActorOperations.TEST_GROUP.getValue());</span>
+<span class="nc" id="L17">        return  handleResponse(new ValidationException.ValidRequestData(), request);</span>
+
+      }
+    //   public Result testGroup(Http.Request req) {
+    //     Request request = apiTest(req, ActorOperations.TEST_GROUP.getValue());
+    //     return Results.ok(Json.toJson(&quot;ok success&quot;));
+    //   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

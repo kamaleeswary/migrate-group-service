@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CreateGroupActor.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.actors</a> &gt; <span class="el_source">CreateGroupActor.java</span></div><h1>CreateGroupActor.java</h1><pre class="source lang-java linenums">package org.sunbird.actors;
+
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.actor.core.ActorConfig;
+import org.sunbird.common.exception.AuthorizationException;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.models.Group;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.service.GroupService;
+import org.sunbird.service.GroupServiceImpl;
+import org.sunbird.service.MemberService;
+import org.sunbird.service.MemberServiceImpl;
+import org.sunbird.util.*;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.helper.PropertiesCache;
+
+@ActorConfig(
+  tasks = {&quot;createGroup&quot;},
+  asyncTasks = {},
+  dispatcher = &quot;group-dispatcher&quot;
+)
+<span class="nc" id="L31">public class CreateGroupActor extends BaseActor {</span>
+<span class="nc" id="L32">  private CacheUtil cacheUtil = new CacheUtil();</span>
+<span class="nc" id="L33">  private static LoggerUtil logger = new LoggerUtil(CreateGroupActor.class);</span>
+
+  @Override
+  public void onReceive(Request request) throws Throwable {
+<span class="nc" id="L37">    String operation = request.getOperation();</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">    switch (operation) {</span>
+      case &quot;createGroup&quot;:
+<span class="nc" id="L40">        createGroup(request);</span>
+<span class="nc" id="L41">        break;</span>
+      default:
+<span class="nc" id="L43">        onReceiveUnsupportedMessage(&quot;CreateGroupActor&quot;);</span>
+    }
+<span class="nc" id="L45">  }</span>
+  /**
+   * This method will create group in cassandra.
+   *
+   * @param actorMessage
+   */
+  private void createGroup(Request actorMessage) throws BaseException {
+<span class="nc" id="L52">    logger.info(actorMessage.getContext(),&quot;In createGroup() actor&quot;);</span>
+<span class="nc" id="L53">    GroupService groupService = new GroupServiceImpl();</span>
+<span class="nc" id="L54">    MemberService memberService = new MemberServiceImpl();</span>
+
+<span class="nc" id="L56">    GroupRequestHandler requestHandler = new GroupRequestHandler();</span>
+<span class="nc" id="L57">    Group group = requestHandler.handleCreateGroupRequest(actorMessage);</span>
+
+<span class="nc" id="L59">    String userId = group.getCreatedBy();</span>
+<span class="nc" id="L60">    String groupId=null;</span>
+    try {
+<span class="nc bnc" id="L62" title="All 2 branches missed.">      if (StringUtils.isEmpty(userId)) {</span>
+<span class="nc" id="L63">        throw new AuthorizationException.NotAuthorized(ResponseCode.GS_CRT01);</span>
+      }
+
+      // add creator of group to memberList as admin
+<span class="nc" id="L67">      List&lt;Map&lt;String, Object&gt;&gt; memberList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L68">      Map&lt;String, Object&gt; createdUser = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L69">      createdUser.put(JsonKey.USER_ID, userId);</span>
+<span class="nc" id="L70">      createdUser.put(JsonKey.ROLE, JsonKey.ADMIN);</span>
+<span class="nc" id="L71">      memberList.add(createdUser);</span>
+
+      // adding members to group, if members are provided in request
+<span class="nc" id="L74">      List&lt;Map&lt;String, Object&gt;&gt; reqMemberList =</span>
+<span class="nc" id="L75">          (List&lt;Map&lt;String, Object&gt;&gt;) actorMessage.getRequest().get(JsonKey.MEMBERS);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(reqMemberList)) {</span>
+<span class="nc" id="L77">        memberList.addAll(reqMemberList);</span>
+      }
+
+<span class="nc" id="L80">      logger.info(actorMessage.getContext(), MessageFormat.format(&quot;Fetching groups from user-group for userId {0}&quot;, userId));</span>
+<span class="nc" id="L81">      List&lt;Map&lt;String, Object&gt;&gt; userGroupsList =</span>
+<span class="nc" id="L82">              memberService.getGroupIdsforUserIds(GroupUtil.getMemberIdListFromMap(memberList), actorMessage.getContext());</span>
+<span class="nc" id="L83">      validateMaxGroupLimitation(userId, userGroupsList);</span>
+<span class="nc" id="L84">      Map&lt;String, List&lt;Map&lt;String, String&gt;&gt;&gt; validationErrors = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L85">      boolean  memberLimitExceeded = validateMaxMemberLimitation(memberList, validationErrors,actorMessage.getContext());</span>
+<span class="nc" id="L86">      boolean  activityLimitExceeded = validateMaxActivitiesLimitation(group, validationErrors,actorMessage.getContext());</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">      if (activityLimitExceeded) {</span>
+         // if activity limit exceeded, we should not add into the db
+<span class="nc" id="L89">        group.setActivities(null);</span>
+      }
+<span class="nc" id="L91">      groupId = groupService.createGroup(group, actorMessage.getContext());</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(memberList)) {</span>
+<span class="nc" id="L93">          logger.info(actorMessage.getContext(), MessageFormat.format(&quot;Adding members to the group: {0} started&quot;, groupId));</span>
+          boolean isUseridRedisEnabled =
+<span class="nc" id="L95">                  Boolean.parseBoolean(</span>
+<span class="nc" id="L96">                          PropertiesCache.getInstance().getConfigValue(JsonKey.ENABLE_USERID_REDIS_CACHE));</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">          if (isUseridRedisEnabled) {</span>
+            // Remove group list user cache from redis
+<span class="nc" id="L99">            cacheUtil.deleteCacheSync(userId,actorMessage.getContext());</span>
+<span class="nc" id="L100">            deleteUserCache(memberList,actorMessage.getContext());</span>
+          }
+          // if memberLimitExceeded is true, then members are not added in to the group,but group will
+          // be created, and groupId is returned in response ,with a errorMsg EXCEEDED_MEMBER_MAX_LIMIT
+          // this is not used/expected call flow for creating group. Doing this for direct api hits.
+<span class="nc bnc" id="L105" title="All 2 branches missed.">          if (!memberLimitExceeded) {</span>
+<span class="nc" id="L106">            Response addMembersRes =</span>
+<span class="nc" id="L107">                    memberService.handleMemberAddition(memberList, groupId, userId, userGroupsList, actorMessage.getContext());</span>
+<span class="nc" id="L108">            logger.info(actorMessage.getContext(), MessageFormat.format(</span>
+                    &quot;Adding members to the group : {0} ended , response {1}&quot;,
+                    groupId,
+<span class="nc" id="L111">                    addMembersRes.getResult()));</span>
+          }
+        }
+
+<span class="nc" id="L115">        Response response = new Response();</span>
+<span class="nc" id="L116">        response.put(JsonKey.GROUP_ID, groupId);</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if (MapUtils.isNotEmpty(validationErrors)</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">                &amp;&amp; (CollectionUtils.isNotEmpty(validationErrors.get(JsonKey.MEMBERS))</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                || CollectionUtils.isNotEmpty(validationErrors.get(JsonKey.ACTIVITIES)))) {</span>
+<span class="nc" id="L120">          response.put(JsonKey.ERROR, validationErrors);</span>
+        }
+<span class="nc" id="L122">        logger.info(actorMessage.getContext(), MessageFormat.format(&quot;group created successfully with groupId {0}&quot;, groupId));</span>
+<span class="nc" id="L123">        sender().tell(response, self());</span>
+
+<span class="nc" id="L125">    }catch (Exception ex){</span>
+<span class="nc" id="L126">      logger.debug(actorMessage.getContext(),MessageFormat.format(&quot;CreateGroupActor: Request: {0}&quot;,actorMessage.getRequest()));</span>
+      try {
+<span class="nc" id="L128">        ExceptionHandler.handleExceptions(actorMessage, ex, ResponseCode.GS_CRT03);</span>
+<span class="nc" id="L129">      }catch (BaseException e){</span>
+<span class="nc" id="L130">        logger.error(actorMessage.getContext(),</span>
+<span class="nc" id="L131">                MessageFormat.format(&quot;CreateGroupActor:Error Msg: {0} &quot;,e.getMessage()),</span>
+                e);
+<span class="nc" id="L133">        throw e;</span>
+<span class="nc" id="L134">      }</span>
+    } finally {
+<span class="nc" id="L136">      TelemetryHandler.logGroupCreateTelemetry(actorMessage, groupId);</span>
+    }
+<span class="nc" id="L138">  }</span>
+
+
+    private boolean validateMaxActivitiesLimitation(Group group, Map&lt;String, List&lt;Map&lt;String, String&gt;&gt;&gt; validationErrors, Map&lt;String,Object&gt; reqContext) throws BaseException {
+
+<span class="nc" id="L143">      List&lt;Map&lt;String, String&gt;&gt; activityErrorList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L144">      validationErrors.put(JsonKey.ACTIVITIES, activityErrorList);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">      boolean maxActivityLimit = GroupUtil.checkMaxActivityLimit(group.getActivities() != null ? group.getActivities().size() : 0);</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">      if(maxActivityLimit){</span>
+<span class="nc" id="L147">        String errMsg = MessageFormat.format(ResponseCode.GS_CRT06.getErrorMessage(),</span>
+<span class="nc" id="L148">                  PropertiesCache.getInstance().getProperty(JsonKey.MAX_ACTIVITY_LIMIT));</span>
+<span class="nc" id="L149">        Map&lt;String, String&gt; errorMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L150">        errorMap.put(JsonKey.ERROR_MESSAGE, errMsg);</span>
+<span class="nc" id="L151">        errorMap.put(JsonKey.ERROR_CODE, ResponseCode.GS_CRT06.getErrorCode());</span>
+<span class="nc" id="L152">        activityErrorList.add(errorMap);</span>
+      }
+<span class="nc" id="L154">      return maxActivityLimit;</span>
+
+  }
+
+  private boolean validateMaxMemberLimitation(List&lt;Map&lt;String, Object&gt;&gt; memberList, Map&lt;String, List&lt;Map&lt;String, String&gt;&gt;&gt; validationErrors,Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L159">      List&lt;Map&lt;String, String&gt;&gt; memberErrorList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L160">      validationErrors.put(JsonKey.MEMBERS, memberErrorList);</span>
+<span class="nc" id="L161">      boolean maxMemberLimit = GroupUtil.checkMaxMemberLimit(memberList.size());</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">      if(maxMemberLimit){</span>
+<span class="nc" id="L163">          String errMsg = MessageFormat.format(ResponseCode.GS_CRT05.getErrorMessage(),</span>
+<span class="nc" id="L164">                  PropertiesCache.getInstance().getProperty(JsonKey.MAX_GROUP_MEMBERS_LIMIT));</span>
+<span class="nc" id="L165">          Map&lt;String, String&gt; errorMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L166">          errorMap.put(JsonKey.ERROR_MESSAGE, errMsg);</span>
+<span class="nc" id="L167">          errorMap.put(JsonKey.ERROR_CODE, ResponseCode.GS_CRT05.getErrorCode());</span>
+<span class="nc" id="L168">          memberErrorList.add(errorMap);</span>
+      }
+<span class="nc" id="L170">      return maxMemberLimit;</span>
+
+  }
+
+  private void validateMaxGroupLimitation(String userId, List&lt;Map&lt;String, Object&gt;&gt; userGroupsList) {
+<span class="nc" id="L175">    boolean maxGroupLimitExceed = GroupUtil.checkMaxGroupLimit(userGroupsList, userId);</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">    if(maxGroupLimitExceed){</span>
+<span class="nc" id="L177">      throw new BaseException(ResponseCode.GS_CRT04.getErrorCode(),</span>
+<span class="nc" id="L178">              MessageFormat.format(ResponseCode.GS_CRT04.getErrorMessage(),</span>
+<span class="nc" id="L179">                      PropertiesCache.getInstance().getProperty(JsonKey.MAX_GROUP_LIMIT)),ResponseCode.CLIENT_ERROR.getResponseCode());</span>
+    }
+<span class="nc" id="L181">  }</span>
+
+  private void deleteUserCache(List&lt;Map&lt;String, Object&gt;&gt; memberList,Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L184">    CacheUtil cacheUtil = new CacheUtil();</span>
+<span class="nc" id="L185">    logger.info(reqContext,&quot;Delete user cache from redis&quot;);</span>
+<span class="nc" id="L186">    memberList.forEach(member -&gt; cacheUtil.delCache((String) (member.get(JsonKey.USER_ID))));</span>
+<span class="nc" id="L187">  }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

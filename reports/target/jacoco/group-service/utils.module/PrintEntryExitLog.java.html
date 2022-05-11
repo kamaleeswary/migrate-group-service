@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>PrintEntryExitLog.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-service</a> &gt; <a href="index.source.html" class="el_package">utils.module</a> &gt; <span class="el_source">PrintEntryExitLog.java</span></div><h1>PrintEntryExitLog.java</h1><pre class="source lang-java linenums">package utils.module;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.models.EntryExitLogEvent;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.common.response.ResponseParams;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.common.message.IResponseMessage;
+import org.sunbird.util.LoggerUtil;
+
+
+<span class="nc" id="L24">public class PrintEntryExitLog {</span>
+
+<span class="nc" id="L26">  static LoggerUtil logger = new LoggerUtil(PrintEntryExitLog.class);</span>
+<span class="nc" id="L27">  private static ObjectMapper objectMapper = new ObjectMapper();</span>
+
+  public static void printEntryLog(Request request) {
+    try {
+<span class="nc" id="L31">      EntryExitLogEvent entryLogEvent = getLogEvent(request, &quot;ENTRY&quot;,&quot;TRACE&quot;);</span>
+<span class="nc" id="L32">      List&lt;Map&lt;String, Object&gt;&gt; params = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L33">      Map&lt;String, Object&gt; reqMap = request.getRequest();</span>
+<span class="nc" id="L34">      Map&lt;String, Object&gt; newReqMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L35">      String url = (String) request.getContext().get(JsonKey.URL);</span>
+<span class="nc" id="L36">      newReqMap.putAll(reqMap);</span>
+<span class="nc" id="L37">      params.add(newReqMap);</span>
+<span class="nc" id="L38">      getParamObject(request.getContext(), params);</span>
+<span class="nc" id="L39">      entryLogEvent.setEdataParams(params);</span>
+<span class="nc" id="L40">      logger.info(objectMapper.writeValueAsString(entryLogEvent));</span>
+<span class="nc" id="L41">    } catch (Exception ex) {</span>
+<span class="nc" id="L42">      logger.error(request.getContext(),&quot;Exception occurred while logging entry log: &quot;+ex.getMessage());</span>
+<span class="nc" id="L43">    }</span>
+<span class="nc" id="L44">  }</span>
+
+  public static void printExitLogOnSuccessResponse(Request request, Response response) {
+    try {
+<span class="nc" id="L48">      EntryExitLogEvent exitLogEvent = getLogEvent(request, &quot;EXIT&quot;,&quot;TRACE&quot;);</span>
+<span class="nc" id="L49">      String url = (String) request.getContext().get(JsonKey.URL);</span>
+<span class="nc" id="L50">      List&lt;Map&lt;String, Object&gt;&gt; params = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">      if (null != response) {</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if (MapUtils.isNotEmpty(response.getResult())) {</span>
+<span class="nc" id="L53">          Map&lt;String, Object&gt; resMap = response.getResult();</span>
+<span class="nc" id="L54">          Map&lt;String, Object&gt; newRespMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L55">          newRespMap.putAll(resMap);</span>
+<span class="nc" id="L56">          params.add(newRespMap);</span>
+        }
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (null != response.getParams()) {</span>
+<span class="nc" id="L59">          Map&lt;String, Object&gt; resParam = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L60">          resParam.putAll(objectMapper.convertValue(response.getParams(), Map.class));</span>
+<span class="nc" id="L61">          resParam.put(JsonKey.RESPONSE_CODE, response.getResponseCode());</span>
+<span class="nc" id="L62">          getParamObject(resParam,params);</span>
+        }
+      }
+<span class="nc" id="L65">      getParamObject(request.getContext(), params);</span>
+<span class="nc" id="L66">      exitLogEvent.setEdataParams(params);</span>
+<span class="nc" id="L67">      logger.info(objectMapper.writeValueAsString(exitLogEvent));</span>
+<span class="nc" id="L68">    } catch (Exception ex) {</span>
+<span class="nc" id="L69">      logger.error(request.getContext(),&quot;Exception occurred while logging exit log: &quot;+ ex.getMessage());</span>
+<span class="nc" id="L70">    }</span>
+<span class="nc" id="L71">  }</span>
+
+  private static void getParamObject(Map&lt;String,Object&gt; context, List&lt;Map&lt;String, Object&gt;&gt; params) {
+<span class="nc bnc" id="L74" title="All 2 branches missed.">    for (Map.Entry&lt;String,Object&gt; itr: context.entrySet()) {</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">       if(null != itr.getValue()) {</span>
+<span class="nc" id="L76">         params.add(new HashMap&lt;&gt;() {{</span>
+<span class="nc" id="L77">           put(itr.getKey(), itr.getValue());</span>
+<span class="nc" id="L78">         }});</span>
+       }
+<span class="nc" id="L80">    }</span>
+<span class="nc" id="L81">  }</span>
+
+  public static void printExitLogOnFailure(Request request, Exception ex) {
+    try {
+<span class="nc" id="L85">      EntryExitLogEvent exitLogEvent = getLogEvent(request, &quot;EXIT&quot;,&quot;ERROR&quot;);</span>
+<span class="nc" id="L86">      String requestId = request.getRequestId();</span>
+<span class="nc" id="L87">      List&lt;Map&lt;String, Object&gt;&gt; params = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L88">      BaseException exception = null;</span>
+<span class="nc bnc" id="L89" title="All 4 branches missed.">      if (null == ex || !(ex instanceof BaseException)) {</span>
+<span class="nc" id="L90">        ex =</span>
+            new BaseException(
+                IResponseMessage.Key.SERVER_ERROR,
+<span class="nc" id="L93">                    exception.getMessage(),</span>
+<span class="nc" id="L94">                ResponseCode.SERVER_ERROR.getResponseCode());</span>
+      }else{
+<span class="nc" id="L96">        exception = (BaseException) ex;</span>
+      }
+
+<span class="nc" id="L99">      ResponseCode code = ResponseCode.getResponse(exception.getCode());</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">      if (code == null) {</span>
+<span class="nc" id="L101">        code = ResponseCode.SERVER_ERROR;</span>
+      }
+<span class="nc" id="L103">      ResponseParams responseParams =</span>
+<span class="nc" id="L104">          createResponseParamObj(code, exception.getMessage(), requestId);</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">      if (responseParams != null) {</span>
+<span class="nc" id="L106">        responseParams.setStatus(JsonKey.FAILED);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (exception.getCode() != null) {</span>
+<span class="nc" id="L108">          responseParams.setStatus(JsonKey.FAILED);</span>
+        }
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if (!StringUtils.isBlank(responseParams.getErrmsg())</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">            &amp;&amp; responseParams.getErrmsg().contains(&quot;{0}&quot;)) {</span>
+<span class="nc" id="L112">          responseParams.setErrmsg(exception.getMessage());</span>
+        }
+      }
+<span class="nc bnc" id="L115" title="All 2 branches missed.">      if (null != responseParams) {</span>
+<span class="nc" id="L116">        Map&lt;String, Object&gt; resParam = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L117">        resParam.putAll(objectMapper.convertValue(responseParams, Map.class));</span>
+<span class="nc" id="L118">        resParam.put(JsonKey.RESPONSE_CODE, exception.getResponseCode());</span>
+<span class="nc" id="L119">        getParamObject(resParam,params);</span>
+      }
+<span class="nc" id="L121">      getParamObject(request.getContext(), params);</span>
+<span class="nc" id="L122">      exitLogEvent.setEdataParams(params);</span>
+<span class="nc" id="L123">      logger.info(objectMapper.writeValueAsString(exitLogEvent));</span>
+<span class="nc" id="L124">    } catch (Exception e) {</span>
+<span class="nc" id="L125">      logger.error(request.getContext(),&quot;Exception occurred while logging exit log: &quot;+ e);</span>
+<span class="nc" id="L126">    }</span>
+<span class="nc" id="L127">  }</span>
+
+  private static EntryExitLogEvent getLogEvent(Request request, String logType, String eventType) {
+<span class="nc" id="L130">    EntryExitLogEvent entryLogEvent = new EntryExitLogEvent();</span>
+<span class="nc" id="L131">    entryLogEvent.setEid(&quot;LOG&quot;);</span>
+<span class="nc" id="L132">    String url = (String) request.getContext().get(JsonKey.URL);</span>
+<span class="nc" id="L133">    String entryLogMsg =</span>
+        logType
+            + &quot; LOG: method : &quot;
+<span class="nc" id="L136">            + request.getContext().get(JsonKey.METHOD)</span>
+            + &quot;, url: &quot;
+            + url
+            + &quot; , For Operation : &quot;
+<span class="nc" id="L140">            + request.getOperation();</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">    String requestId = (String)( request.getContext() != null ? request.getContext().get(JsonKey.X_REQUEST_ID) : &quot;&quot;);</span>
+<span class="nc" id="L142">    entryLogEvent.setEdata(&quot;system&quot;, eventType, requestId, entryLogMsg, null, null);</span>
+<span class="nc" id="L143">    return entryLogEvent;</span>
+  }
+
+  public static ResponseParams createResponseParamObj(
+      ResponseCode code, String customMessage, String requestId) {
+<span class="nc" id="L148">    ResponseParams params = new ResponseParams();</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">    if (code.getResponseCode() != 200) {</span>
+<span class="nc" id="L150">      params.setErr(code.getErrorCode());</span>
+<span class="nc" id="L151">      params.setErrmsg(</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">          StringUtils.isNotBlank(customMessage) ? customMessage : code.getErrorMessage());</span>
+    }
+<span class="nc" id="L154">    params.setStatus(ResponseCode.getHeaderResponseCode(code.getResponseCode()).name());</span>
+<span class="nc" id="L155">    params.setMsgid(requestId);</span>
+<span class="nc" id="L156">    return params;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

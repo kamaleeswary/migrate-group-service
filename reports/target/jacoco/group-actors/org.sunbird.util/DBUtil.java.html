@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DBUtil.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">DBUtil.java</span></div><h1>DBUtil.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.helper.CassandraConnectionManager;
+import org.sunbird.helper.CassandraConnectionMngrFactory;
+
+<span class="nc" id="L11">public class DBUtil {</span>
+<span class="nc" id="L12">  public static final Map&lt;String, DbInfo&gt; dbInfoMap = new HashMap&lt;&gt;();</span>
+  public static final String KEY_SPACE_NAME = JsonKey.SUNBIRD_GROUPS;
+
+  private static void initializeDBProperty() {
+    // setting db info (keyspace , table) into static map
+    // this map will be used during cassandra data base interaction.
+    // this map will have each DB name and it's corresponding keyspace and table
+    // name.
+<span class="nc" id="L20">    dbInfoMap.put(JsonKey.USER_DB, getDbInfoObject(KEY_SPACE_NAME, &quot;group&quot;));</span>
+<span class="nc" id="L21">  }</span>
+
+  /**
+   * This method will check the cassandra data base connection. first it will try to established the
+   * data base connection from provided environment variable , if environment variable values are
+   * not set then connection will be established from property file.
+   */
+  public static void checkCassandraDbConnections() throws BaseException {
+    CassandraConnectionManager cassandraConnectionManager =
+<span class="nc" id="L30">        CassandraConnectionMngrFactory.getInstance();</span>
+<span class="nc" id="L31">    String nodes = System.getenv(JsonKey.SUNBIRD_CASSANDRA_IP);</span>
+<span class="nc" id="L32">    String[] hosts = null;</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">    if (StringUtils.isNotBlank(nodes)) {</span>
+<span class="nc" id="L34">      hosts = nodes.split(&quot;,&quot;);</span>
+    } else {
+<span class="nc" id="L36">      hosts = new String[] {&quot;localhost&quot;};</span>
+    }
+<span class="nc" id="L38">    cassandraConnectionManager.createConnection(hosts);</span>
+<span class="nc" id="L39">  }</span>
+
+  private static DbInfo getDbInfoObject(String keySpace, String table) {
+
+<span class="nc" id="L43">    DbInfo dbInfo = new DbInfo();</span>
+
+<span class="nc" id="L45">    dbInfo.setKeySpace(keySpace);</span>
+<span class="nc" id="L46">    dbInfo.setTableName(table);</span>
+
+<span class="nc" id="L48">    return dbInfo;</span>
+  }
+
+  /** class to hold cassandra db info. */
+  public static class DbInfo {
+    private String keySpace;
+    private String tableName;
+    private String userName;
+    private String password;
+    private String ip;
+    private String port;
+
+    /**
+     * @param keySpace
+     * @param tableName
+     * @param userName
+     * @param password
+     */
+    DbInfo(
+        String keySpace,
+        String tableName,
+        String userName,
+        String password,
+        String ip,
+<span class="nc" id="L72">        String port) {</span>
+<span class="nc" id="L73">      this.keySpace = keySpace;</span>
+<span class="nc" id="L74">      this.tableName = tableName;</span>
+<span class="nc" id="L75">      this.userName = userName;</span>
+<span class="nc" id="L76">      this.password = password;</span>
+<span class="nc" id="L77">      this.ip = ip;</span>
+<span class="nc" id="L78">      this.port = port;</span>
+<span class="nc" id="L79">    }</span>
+
+    /** No-arg constructor */
+<span class="nc" id="L82">    DbInfo() {}</span>
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">      if (obj instanceof DbInfo) {</span>
+<span class="nc" id="L87">        DbInfo ob = (DbInfo) obj;</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (this.ip.equals(ob.getIp())</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            &amp;&amp; this.port.equals(ob.getPort())</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            &amp;&amp; this.keySpace.equals(ob.getKeySpace())) {</span>
+<span class="nc" id="L91">          return true;</span>
+        }
+      }
+<span class="nc" id="L94">      return false;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L99">      return 1;</span>
+    }
+
+    public String getKeySpace() {
+<span class="nc" id="L103">      return keySpace;</span>
+    }
+
+    public void setKeySpace(String keySpace) {
+<span class="nc" id="L107">      this.keySpace = keySpace;</span>
+<span class="nc" id="L108">    }</span>
+
+    public String getTableName() {
+<span class="nc" id="L111">      return tableName;</span>
+    }
+
+    public void setTableName(String tableName) {
+<span class="nc" id="L115">      this.tableName = tableName;</span>
+<span class="nc" id="L116">    }</span>
+
+    public String getUserName() {
+<span class="nc" id="L119">      return userName;</span>
+    }
+
+    public void setUserName(String userName) {
+<span class="nc" id="L123">      this.userName = userName;</span>
+<span class="nc" id="L124">    }</span>
+
+    public String getPassword() {
+<span class="nc" id="L127">      return password;</span>
+    }
+
+    public void setPassword(String password) {
+<span class="nc" id="L131">      this.password = password;</span>
+<span class="nc" id="L132">    }</span>
+
+    public String getIp() {
+<span class="nc" id="L135">      return ip;</span>
+    }
+
+    public String getPort() {
+<span class="nc" id="L139">      return port;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

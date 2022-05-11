@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CacheUtil.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.util</a> &gt; <span class="el_source">CacheUtil.java</span></div><h1>CacheUtil.java</h1><pre class="source lang-java linenums">package org.sunbird.util;
+
+import akka.actor.ActorRef;
+import akka.pattern.Patterns;
+import akka.util.Timeout;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.MDC;
+import org.sunbird.Application;
+import org.sunbird.cache.impl.RedisCache;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.models.ActorOperations;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.util.helper.PropertiesCache;
+import scala.collection.JavaConverters;
+import scala.concurrent.Await;
+import scala.concurrent.Future;
+import scala.concurrent.duration.Duration;
+
+public class CacheUtil {
+
+<span class="nc" id="L29">  private LoggerUtil logger = new LoggerUtil(CacheUtil.class);</span>
+
+<span class="nc" id="L31">  private Timeout timeout = new Timeout(Duration.create(10, TimeUnit.SECONDS));</span>
+
+<span class="nc" id="L33">  Map&lt;String, Object&gt; headerMap = new HashMap&lt;&gt;();</span>
+
+  public static int groupTtl;
+  public static int userTtl;
+
+  static {
+    groupTtl =
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        StringUtils.isNotEmpty(</span>
+<span class="nc" id="L41">                PropertiesCache.getInstance().getConfigValue(JsonKey.GROUPS_REDIS_TTL))</span>
+<span class="nc" id="L42">            ? Integer.parseInt(</span>
+<span class="nc" id="L43">                PropertiesCache.getInstance().getConfigValue(JsonKey.GROUPS_REDIS_TTL))</span>
+<span class="nc" id="L44">            : 3600000;</span>
+    userTtl =
+<span class="nc bnc" id="L46" title="All 2 branches missed.">        StringUtils.isNotEmpty(PropertiesCache.getInstance().getConfigValue(JsonKey.USER_REDIS_TTL))</span>
+<span class="nc" id="L47">            ? Integer.parseInt(PropertiesCache.getInstance().getConfigValue(JsonKey.USER_REDIS_TTL))</span>
+<span class="nc" id="L48">            : 3600000;</span>
+<span class="nc" id="L49">  }</span>
+
+<span class="nc" id="L51">  public CacheUtil() {</span>
+<span class="nc" id="L52">    List&lt;String&gt; reqIds = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L53">    reqIds.add(MDC.get(JsonKey.REQUEST_MESSAGE_ID));</span>
+<span class="nc" id="L54">    headerMap.put(JsonKey.REQUEST_MESSAGE_ID, reqIds);</span>
+<span class="nc" id="L55">  }</span>
+  /**
+   * to call set cache
+   *
+   * @param key
+   * @param value
+   */
+  public void setCache(String key, String value, int ttl) {
+<span class="nc" id="L63">    Request req = new Request();</span>
+<span class="nc" id="L64">    req.setHeaders(headerMap);</span>
+<span class="nc" id="L65">    req.setOperation(ActorOperations.SET_CACHE.getValue());</span>
+<span class="nc" id="L66">    req.getRequest().put(JsonKey.KEY, key);</span>
+<span class="nc" id="L67">    req.getRequest().put(JsonKey.VALUE, value);</span>
+<span class="nc" id="L68">    req.getRequest().put(JsonKey.TTL, ttl);</span>
+<span class="nc" id="L69">    Application.getInstance()</span>
+<span class="nc" id="L70">        .getActorRef(ActorOperations.SET_CACHE.getValue())</span>
+<span class="nc" id="L71">        .tell(req, ActorRef.noSender());</span>
+<span class="nc" id="L72">  }</span>
+
+  /**
+   * to call get cache
+   *
+   * @param key
+   */
+  public String getCache(String key, Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L80">    String value = null;</span>
+<span class="nc" id="L81">    Request req = new Request();</span>
+<span class="nc" id="L82">    req.setOperation(ActorOperations.GET_CACHE.getValue());</span>
+<span class="nc" id="L83">    req.getRequest().put(JsonKey.KEY, key);</span>
+<span class="nc" id="L84">    req.setHeaders(headerMap);</span>
+    try {
+<span class="nc" id="L86">      Object object =</span>
+<span class="nc" id="L87">          getResponse(</span>
+<span class="nc" id="L88">              Application.getInstance().getActorRef(ActorOperations.GET_CACHE.getValue()), req, reqContext);</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">      if (object instanceof Response) {</span>
+<span class="nc" id="L90">        Response response = (Response) object;</span>
+<span class="nc" id="L91">        value = (String) response.get(JsonKey.VALUE);</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">      } else if (object instanceof Exception) {</span>
+<span class="nc" id="L93">        logger.error(reqContext, MessageFormat.format(&quot;getCache: Exception occurred with error message =  {0}&quot;, object));</span>
+      }
+<span class="nc" id="L95">    } catch (Exception e) {</span>
+<span class="nc" id="L96">      logger.error(reqContext,MessageFormat.format(&quot;getCache: Exception occurred with error message =  {0}&quot;, e.getMessage()));</span>
+<span class="nc" id="L97">    }</span>
+<span class="nc" id="L98">    return value;</span>
+  }
+
+  private Object getResponse(ActorRef actorRef, Request request, Map&lt;String,Object&gt; reqContext) {
+    try {
+<span class="nc" id="L103">      return Await.result(getFuture(actorRef, request), timeout.duration());</span>
+<span class="nc" id="L104">    } catch (Exception e) {</span>
+<span class="nc" id="L105">      logger.error(reqContext,MessageFormat.format(&quot;getResponse: Exception occurred with error message =  {0}&quot;, e.getMessage()));</span>
+    }
+<span class="nc" id="L107">    return null;</span>
+  }
+
+  private Future&lt;Object&gt; getFuture(ActorRef actorRef, Request request) {
+<span class="nc" id="L111">    return Patterns.ask(actorRef, request, timeout);</span>
+  }
+
+  /**
+   * to call del cache
+   *
+   * @param key
+   */
+  public void delCache(String key) {
+<span class="nc" id="L120">    Request req = new Request();</span>
+<span class="nc" id="L121">    req.setOperation(ActorOperations.DEL_CACHE.getValue());</span>
+<span class="nc" id="L122">    req.getRequest().put(JsonKey.KEY, key);</span>
+<span class="nc" id="L123">    req.setHeaders(headerMap);</span>
+<span class="nc" id="L124">    Application.getInstance()</span>
+<span class="nc" id="L125">        .getActorRef(ActorOperations.DEL_CACHE.getValue())</span>
+<span class="nc" id="L126">        .tell(req, ActorRef.noSender());</span>
+<span class="nc" id="L127">  }</span>
+
+  public void deleteCacheSync(String key, Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L130">    logger.info(reqContext,MessageFormat.format(&quot;delete cache in sync from redis for the id {0}&quot;, key));</span>
+<span class="nc" id="L131">    RedisCache.delete(</span>
+<span class="nc" id="L132">        JavaConverters.asScalaIteratorConverter(Arrays.asList(key).iterator()).asScala().toSeq());</span>
+<span class="nc" id="L133">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>UpdateGroupActor.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.actors</a> &gt; <span class="el_source">UpdateGroupActor.java</span></div><h1>UpdateGroupActor.java</h1><pre class="source lang-java linenums">package org.sunbird.actors;
+
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.sunbird.actor.core.ActorConfig;
+import org.sunbird.common.exception.AuthorizationException;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.common.exception.ValidationException;
+import org.sunbird.common.message.ResponseCode;
+import org.sunbird.common.util.NotificationType;
+import org.sunbird.models.Group;
+import org.sunbird.models.MemberResponse;
+import org.sunbird.common.request.Request;
+import org.sunbird.common.response.Response;
+import org.sunbird.notifications.NotificationManager;
+import org.sunbird.service.GroupService;
+import org.sunbird.service.GroupServiceImpl;
+import org.sunbird.service.MemberService;
+import org.sunbird.service.MemberServiceImpl;
+import org.sunbird.util.*;
+import org.sunbird.common.util.JsonKey;
+import org.sunbird.util.helper.PropertiesCache;
+
+@ActorConfig(
+  tasks = {&quot;updateGroup&quot;},
+  asyncTasks = {},
+  dispatcher = &quot;group-dispatcher&quot;
+)
+<span class="nc" id="L35">public class UpdateGroupActor extends BaseActor {</span>
+<span class="nc" id="L36">  private CacheUtil cacheUtil = new CacheUtil();</span>
+<span class="nc" id="L37">  private LoggerUtil logger = new LoggerUtil(UpdateGroupActor.class);</span>
+  @Override
+  public void onReceive(Request request) throws Throwable {
+<span class="nc" id="L40">    String operation = request.getOperation();</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">    switch (operation) {</span>
+      case &quot;updateGroup&quot;:
+<span class="nc" id="L43">        updateGroup(request);</span>
+<span class="nc" id="L44">        break;</span>
+      default:
+<span class="nc" id="L46">        onReceiveUnsupportedMessage(&quot;UpdateGroupActor&quot;);</span>
+    }
+<span class="nc" id="L48">  }</span>
+  /**
+   * This method will update group in cassandra based on group id.
+   *
+   * @param actorMessage
+   */
+  private void updateGroup(Request actorMessage) throws BaseException {
+<span class="nc" id="L55">    List&lt;String&gt; notifications = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L57">    logger.info(actorMessage.getContext(),&quot;UpdateGroup method call&quot;);</span>
+
+<span class="nc" id="L59">    GroupRequestHandler requestHandler = new GroupRequestHandler();</span>
+<span class="nc" id="L60">    Group group = requestHandler.handleUpdateGroupRequest(actorMessage);</span>
+<span class="nc" id="L61">    GroupService groupService = new GroupServiceImpl();</span>
+
+<span class="nc" id="L63">    logger.info(actorMessage.getContext(),MessageFormat.format(&quot;Update group for the groupId {0}&quot;, group.getId()));</span>
+<span class="nc" id="L64">    Map&lt;String, Object&gt; dbResGroup= null;</span>
+<span class="nc" id="L65">    String userId = group.getUpdatedBy();</span>
+    try {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">      if (StringUtils.isEmpty(userId)) {</span>
+<span class="nc" id="L68">        logger.error(actorMessage.getContext(),MessageFormat.format(&quot;UpdateGroupActor: Error Code: {0}, Error Msg: {1} &quot;,ResponseCode.GS_UDT01.getErrorCode(),ResponseCode.GS_UDT01.getErrorMessage()));</span>
+<span class="nc" id="L69">        throw new AuthorizationException.NotAuthorized(ResponseCode.GS_UDT01);</span>
+      }
+<span class="nc" id="L71">      dbResGroup = readGroup(group.getId(), groupService, actorMessage.getContext());</span>
+
+      // Check if it is an exit group request
+<span class="nc" id="L74">      boolean isExitGroupRequest =</span>
+<span class="nc" id="L75">              isExitGroupRequest(</span>
+<span class="nc" id="L76">                      group, userId, (Map&lt;String, Object&gt;) actorMessage.getRequest().get(JsonKey.MEMBERS));</span>
+      // Only exit group and activate group request is allowed in suspended group state
+<span class="nc bnc" id="L78" title="All 2 branches missed.">      if (!isExitGroupRequest</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">              &amp;&amp; JsonKey.SUSPENDED.equals(dbResGroup.get(JsonKey.STATUS))</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">              &amp;&amp; (StringUtils.isBlank(group.getStatus())</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">              || JsonKey.SUSPENDED.equals(group.getStatus()))) {</span>
+<span class="nc" id="L82">        logger.error(actorMessage.getContext(),MessageFormat.format(&quot;UpdateGroupActor: Error Code: {0}, Error Msg: {1} {2}&quot;,ResponseCode.GS_UDT08.getErrorCode(),ResponseCode.GS_UDT08.getErrorMessage(),group.getId()));</span>
+<span class="nc" id="L83">        throw new ValidationException.GroupNotActive(group.getId());</span>
+      }
+
+<span class="nc" id="L86">      Map&lt;String, List&lt;Map&lt;String, String&gt;&gt;&gt; responseMap = new HashMap&lt;&gt;();</span>
+      // member validation and updates to group
+<span class="nc" id="L88">      MemberService memberService = new MemberServiceImpl();</span>
+<span class="nc" id="L89">      List&lt;MemberResponse&gt; membersInDB = memberService.fetchMembersByGroupId(group.getId(),actorMessage.getContext());</span>
+
+      // Check if user is authorized to delete ,suspend and re-activate operation
+      // Allow all member to exit the group
+<span class="nc bnc" id="L93" title="All 2 branches missed.">      if (!isExitGroupRequest) {</span>
+<span class="nc" id="L94">        checkUserAuthorization(</span>
+<span class="nc" id="L95">                dbResGroup, membersInDB, group.getStatus(), userId, actorMessage.getRequest(),actorMessage.getContext());</span>
+      }
+
+<span class="nc bnc" id="L98" title="All 2 branches missed.">      if (MapUtils.isNotEmpty((Map) actorMessage.getRequest().get(JsonKey.MEMBERS))) {</span>
+<span class="nc" id="L99">        responseMap.put(</span>
+                JsonKey.MEMBERS,
+<span class="nc" id="L101">                validateMembersAndSave(</span>
+<span class="nc" id="L102">                        group.getId(),</span>
+<span class="nc" id="L103">                        (Map) actorMessage.getRequest().get(JsonKey.MEMBERS),</span>
+                        userId,
+<span class="nc" id="L105">                        membersInDB,actorMessage.getContext()));</span>
+<span class="nc" id="L106">        notifications.add(NotificationType.MEMBER_UPDATE);</span>
+      }
+      // Activity validation
+<span class="nc bnc" id="L109" title="All 2 branches missed.">      if (MapUtils.isNotEmpty(</span>
+<span class="nc" id="L110">              (Map&lt;String, Object&gt;) actorMessage.getRequest().get(JsonKey.ACTIVITIES))) {</span>
+<span class="nc" id="L111">        responseMap.put(</span>
+                JsonKey.ACTIVITIES,
+<span class="nc" id="L113">                validateActivityList(</span>
+<span class="nc" id="L114">                        group, (Map&lt;String, Object&gt;) actorMessage.getRequest().get(JsonKey.ACTIVITIES),actorMessage.getContext()));</span>
+<span class="nc" id="L115">        notifications.add(NotificationType.ACTIVITY_UPDATE);</span>
+      }
+<span class="nc" id="L117">      boolean deleteFromUserCache = false;</span>
+      // Group and activity updates
+<span class="nc bnc" id="L119" title="All 2 branches missed.">      if (group != null</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">              &amp;&amp; (StringUtils.isNotEmpty(group.getDescription())</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">              || StringUtils.isNotEmpty(group.getName())</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">              || StringUtils.isNotEmpty(group.getMembershipType())</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">              || StringUtils.isNotEmpty(group.getStatus())</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">              || MapUtils.isNotEmpty(</span>
+<span class="nc" id="L125">              (Map&lt;String, Object&gt;) actorMessage.getRequest().get(JsonKey.ACTIVITIES)))) {</span>
+<span class="nc" id="L126">        cacheUtil.deleteCacheSync(group.getId(),actorMessage.getContext());</span>
+        // if name, description and status update happens in group , delete cache for all the members
+        // belongs to that group
+<span class="nc" id="L129">        deleteFromUserCache = true;</span>
+        // if inactive status then delete group included to support backward compatability for old
+        // mobile apps
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (JsonKey.INACTIVE.equals(group.getStatus())) {</span>
+<span class="nc" id="L133">          Response response = groupService.deleteGroup(group.getId(), membersInDB,actorMessage.getContext());</span>
+<span class="nc" id="L134">        } else {</span>
+<span class="nc" id="L135">          Response response = groupService.updateGroup(group,actorMessage.getContext());</span>
+        }
+      }
+
+
+      boolean isUseridRedisEnabled =
+<span class="nc" id="L141">              Boolean.parseBoolean(</span>
+<span class="nc" id="L142">                      PropertiesCache.getInstance().getConfigValue(JsonKey.ENABLE_USERID_REDIS_CACHE));</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">      if (isUseridRedisEnabled) {</span>
+<span class="nc" id="L144">        cacheUtil.deleteCacheSync(userId,actorMessage.getContext());</span>
+        // Remove group list user cache from redis
+<span class="nc" id="L146">        deleteUserCache(</span>
+<span class="nc" id="L147">                (Map) actorMessage.getRequest().get(JsonKey.MEMBERS), membersInDB, deleteFromUserCache);</span>
+      }
+
+<span class="nc" id="L150">      Response response = new Response(ResponseCode.OK.getCode());</span>
+<span class="nc" id="L151">      response.put(JsonKey.RESPONSE, JsonKey.SUCCESS);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">      if (MapUtils.isNotEmpty(responseMap)</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">              &amp;&amp; (CollectionUtils.isNotEmpty(responseMap.get(JsonKey.MEMBERS))</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">              || CollectionUtils.isNotEmpty(responseMap.get(JsonKey.ACTIVITIES)))) {</span>
+<span class="nc" id="L155">        response.put(JsonKey.ERROR, responseMap);</span>
+      }
+<span class="nc" id="L157">      sender().tell(response, self());</span>
+<span class="nc" id="L158">      TelemetryHandler.logGroupUpdateTelemetry(actorMessage, group, dbResGroup,true);</span>
+<span class="nc" id="L159">      logger.info(actorMessage.getContext(),&quot;Calling Notifications&quot;);</span>
+<span class="nc" id="L160">      NotificationManager.sendNotifications(actorMessage,notifications,dbResGroup,membersInDB);</span>
+<span class="nc" id="L161">    }catch (Exception ex){</span>
+<span class="nc" id="L162">       logger.info(actorMessage.getContext(),MessageFormat.format(&quot;UpdateGroupActor: Request: {0}&quot;,actorMessage.getRequest()));</span>
+<span class="nc" id="L163">       TelemetryHandler.logGroupUpdateTelemetry(actorMessage, group,dbResGroup,false);</span>
+      try{
+<span class="nc" id="L165">        ExceptionHandler.handleExceptions(actorMessage, ex, ResponseCode.GS_UDT03);</span>
+<span class="nc" id="L166">      }catch (BaseException e){</span>
+<span class="nc" id="L167">        logger.error(actorMessage.getContext(),MessageFormat.format(&quot;UpdateGroupActor:  Error Msg: {0} &quot;,e.getMessage()),e);</span>
+<span class="nc" id="L168">        throw e;</span>
+<span class="nc" id="L169">      }</span>
+<span class="nc" id="L170">    }</span>
+<span class="nc" id="L171">  }</span>
+
+  private Map&lt;String, Object&gt; readGroup(String groupId, GroupService groupService, Map&lt;String,Object&gt; reqContext) throws BaseException {
+    try {
+<span class="nc" id="L175">      return groupService.readGroup(groupId, reqContext);</span>
+<span class="nc" id="L176">    }catch (BaseException ex){</span>
+<span class="nc" id="L177">      throw new BaseException(ResponseCode.GS_UDT07.getErrorCode(),ResponseCode.GS_UDT07.getErrorMessage(),ex.getResponseCode());</span>
+    }
+  }
+
+  private boolean isExitGroupRequest(Group group, String userId, Map&lt;String, Object&gt; members) {
+<span class="nc" id="L182">    boolean isExitRequest = false;</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">    if (group != null</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        &amp;&amp; (StringUtils.isNotEmpty(group.getDescription())</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            || StringUtils.isNotEmpty(group.getName())</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">            || StringUtils.isNotEmpty(group.getMembershipType())</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            || StringUtils.isNotEmpty(group.getStatus())</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">            || CollectionUtils.isNotEmpty(group.getActivities()))) {</span>
+<span class="nc" id="L189">      isExitRequest = false;</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">    } else if (group != null</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        &amp;&amp; MapUtils.isNotEmpty(members)</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">        &amp;&amp; !members.containsKey(JsonKey.ADD)</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        &amp;&amp; !members.containsKey(JsonKey.EDIT)) {</span>
+<span class="nc" id="L194">      List&lt;String&gt; removeMemberList = (List&lt;String&gt;) members.get(JsonKey.REMOVE);</span>
+<span class="nc bnc" id="L195" title="All 4 branches missed.">      isExitRequest = removeMemberList.size() == 1 &amp;&amp; userId.equals(removeMemberList.get(0));</span>
+    }
+<span class="nc" id="L197">    return isExitRequest;</span>
+  }
+
+  private void checkUserAuthorization(
+      Map&lt;String, Object&gt; dbResGroup,
+      List&lt;MemberResponse&gt; membersInDB,
+      String status,
+      String userId,
+      Map&lt;String, Object&gt; groupRequest,
+      Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L207">    MemberResponse member =</span>
+<span class="nc" id="L208">        membersInDB.stream().filter(x -&gt; x.getUserId().equals(userId)).findAny().orElse(null);</span>
+    // Check User is authorized Suspend , Re-activate or delete the group .
+<span class="nc bnc" id="L210" title="All 6 branches missed.">    if ((JsonKey.ACTIVE.equals(status) || JsonKey.SUSPENDED.equals(status))</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        &amp;&amp; (member == null || !JsonKey.ADMIN.equals(member.getRole()))) {</span>
+<span class="nc" id="L212">      logger.error(reqContext,MessageFormat.format(&quot;UpdateGroupActor: Error Code: {0}, Error Msg: {1}&quot;,ResponseCode.GS_UDT09.getErrorCode(),ResponseCode.GS_UDT09.getErrorMessage()));</span>
+<span class="nc" id="L213">      throw new AuthorizationException.NotAuthorized(ResponseCode.GS_UDT09);</span>
+    }
+
+<span class="nc bnc" id="L216" title="All 2 branches missed.">    if (JsonKey.INACTIVE.equals(status)</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        &amp;&amp; !userId.equals((String) dbResGroup.get(JsonKey.CREATED_BY))) {</span>
+<span class="nc" id="L218">      logger.error(reqContext,MessageFormat.format(&quot;UpdateGroupActor: Error Code: {0}, Error Msg: {1}&quot;,ResponseCode.GS_UDT09.getErrorCode(),ResponseCode.GS_UDT09.getErrorMessage()));</span>
+<span class="nc" id="L219">      throw new AuthorizationException.NotAuthorized(ResponseCode.GS_UDT09);</span>
+    }
+
+    // check only admin should be able to update name, description, status ,add,edit or remove
+    // members
+<span class="nc bnc" id="L224" title="All 2 branches missed.">    if (StringUtils.isNotEmpty((String) groupRequest.get(JsonKey.DESC))</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        || StringUtils.isNotEmpty((String) groupRequest.get(JsonKey.NAME))</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        || StringUtils.isNotEmpty((String) groupRequest.get(JsonKey.GROUP_MEMBERSHIP_TYPE))</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">        || StringUtils.isNotEmpty((String) groupRequest.get(JsonKey.GROUP_STATUS))</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        || MapUtils.isNotEmpty((Map) groupRequest.get(JsonKey.MEMBERS))) {</span>
+<span class="nc bnc" id="L229" title="All 4 branches missed.">      if (member == null || !JsonKey.ADMIN.equals(member.getRole())) {</span>
+<span class="nc" id="L230">        logger.error(reqContext,MessageFormat.format(&quot;UpdateGroupActor: Error Code: {0}, Error Msg: {1}&quot;,ResponseCode.GS_UDT09.getErrorCode(),ResponseCode.GS_UDT09.getErrorMessage()));</span>
+<span class="nc" id="L231">        throw new AuthorizationException.NotAuthorized(ResponseCode.GS_UDT09);</span>
+      }
+    }
+
+<span class="nc" id="L235">  }</span>
+
+  private List&lt;Map&lt;String, String&gt;&gt; validateActivityList(
+      Group group, Map&lt;String, Object&gt; activityOperationMap, Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L239">    List&lt;Map&lt;String, Object&gt;&gt; updateActivityList =</span>
+<span class="nc" id="L240">        new GroupServiceImpl().handleActivityOperations(group.getId(), activityOperationMap,reqContext);</span>
+<span class="nc" id="L241">    List&lt;Map&lt;String, String&gt;&gt; activityErrorList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L242">    boolean isActivityLimitExceeded =</span>
+<span class="nc" id="L243">        GroupUtil.checkMaxActivityLimit(updateActivityList.size());</span>
+
+<span class="nc bnc" id="L245" title="All 2 branches missed.">    if (!isActivityLimitExceeded) {</span>
+<span class="nc" id="L246">      group.setActivities(updateActivityList);</span>
+    }else{
+<span class="nc" id="L248">      logger.error(reqContext,MessageFormat.format(&quot;UpdateGroupActor: Error Code: {0}, Error Msg: {1}&quot;,ResponseCode.GS_UDT06.getErrorCode(),ResponseCode.GS_UDT06.getErrorMessage()));</span>
+<span class="nc" id="L249">      Map&lt;String, String&gt; errorMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L250">      errorMap.put(JsonKey.ERROR_MESSAGE, ResponseCode.GS_UDT06.getErrorMessage());</span>
+<span class="nc" id="L251">      errorMap.put(JsonKey.ERROR_CODE, ResponseCode.GS_UDT06.getErrorCode());</span>
+<span class="nc" id="L252">      activityErrorList.add(errorMap);</span>
+    }
+<span class="nc" id="L254">    return activityErrorList;</span>
+  }
+
+  private List&lt;Map&lt;String, String&gt;&gt; validateMembersAndSave(
+      String groupId,
+      Map memberOperationMap,
+      String updatedBy,
+      List&lt;MemberResponse&gt; membersInDB,
+      Map&lt;String,Object&gt; reqContext) {
+<span class="nc" id="L263">    List&lt;Map&lt;String, String&gt;&gt; memberErrorList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L265">    MemberService memberService = new MemberServiceImpl();</span>
+
+<span class="nc" id="L267">    GroupRequestHandler requestHandler = new GroupRequestHandler();</span>
+    // Validate Member Addition
+<span class="nc bnc" id="L269" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(</span>
+<span class="nc" id="L270">        (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD))) {</span>
+<span class="nc" id="L271">      requestHandler.validateAddMembers(memberOperationMap, membersInDB, memberErrorList);</span>
+    }
+    // Validate Member Update
+<span class="nc bnc" id="L274" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty(</span>
+<span class="nc" id="L275">        (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.EDIT))) {</span>
+<span class="nc" id="L276">      requestHandler.validateEditMembers(memberOperationMap, membersInDB, memberErrorList);</span>
+    }
+    // Validate Member Remove
+<span class="nc bnc" id="L279" title="All 2 branches missed.">    if (CollectionUtils.isNotEmpty((List&lt;String&gt;) memberOperationMap.get(JsonKey.REMOVE))) {</span>
+<span class="nc" id="L280">      requestHandler.validateRemoveMembers(memberOperationMap, membersInDB, memberErrorList);</span>
+    }
+<span class="nc" id="L282">    int totalMemberCount = GroupUtil.totalMemberCount(memberOperationMap, membersInDB);</span>
+<span class="nc" id="L283">    boolean memberLimit = GroupUtil.checkMaxMemberLimit(totalMemberCount);</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">    if(memberLimit){</span>
+<span class="nc" id="L285">      logger.error(reqContext,MessageFormat.format(&quot;UpdateGroupActor: Error Code: {0}, Error Msg: {1}&quot;,ResponseCode.GS_UDT05.getErrorCode(),ResponseCode.GS_UDT05.getErrorMessage()));</span>
+<span class="nc" id="L286">      Map&lt;String, String&gt; errorMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L287">      errorMap.put(JsonKey.ERROR_MESSAGE, ResponseCode.GS_UDT05.getErrorMessage());</span>
+<span class="nc" id="L288">      errorMap.put(JsonKey.ERROR_CODE, ResponseCode.GS_UDT05.getErrorCode());</span>
+<span class="nc" id="L289">      memberErrorList.add(errorMap);</span>
+    }
+
+<span class="nc" id="L292">    cacheUtil.delCache(groupId + &quot;_&quot; + JsonKey.MEMBERS);</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">    if (!memberLimit) {</span>
+<span class="nc" id="L294">      memberService.handleMemberOperations(memberOperationMap, groupId, updatedBy,reqContext);</span>
+    }
+<span class="nc" id="L296">    return memberErrorList;</span>
+  }
+
+  private void deleteUserCache(
+      Map memberOperationMap, List&lt;MemberResponse&gt; dbMembers, boolean deleteFromUserCache) {
+<span class="nc bnc" id="L301" title="All 2 branches missed.">    if (MapUtils.isNotEmpty(memberOperationMap)) {</span>
+<span class="nc" id="L302">      List&lt;Map&lt;String, Object&gt;&gt; memberAddList =</span>
+<span class="nc" id="L303">          (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.ADD);</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(memberAddList)) {</span>
+<span class="nc" id="L305">        memberAddList.forEach(member -&gt; cacheUtil.delCache((String) (member.get(JsonKey.USER_ID))));</span>
+      }
+<span class="nc" id="L307">      List&lt;Map&lt;String, Object&gt;&gt; memberEditList =</span>
+<span class="nc" id="L308">          (List&lt;Map&lt;String, Object&gt;&gt;) memberOperationMap.get(JsonKey.EDIT);</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(memberEditList)) {</span>
+<span class="nc" id="L310">        memberEditList.forEach(</span>
+<span class="nc" id="L311">            member -&gt; cacheUtil.delCache((String) (member.get(JsonKey.USER_ID))));</span>
+      }
+<span class="nc" id="L313">      List&lt;String&gt; memberRemoveList = (List&lt;String&gt;) memberOperationMap.get(JsonKey.REMOVE);</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">      if (CollectionUtils.isNotEmpty(memberRemoveList)) {</span>
+<span class="nc" id="L315">        memberRemoveList.forEach(member -&gt; cacheUtil.delCache(member));</span>
+      }
+    }
+<span class="nc bnc" id="L318" title="All 4 branches missed.">    if (CollectionUtils.isNotEmpty(dbMembers) &amp;&amp; deleteFromUserCache) {</span>
+<span class="nc" id="L319">      dbMembers.forEach(member -&gt; cacheUtil.delCache(member.getUserId()));</span>
+    }
+<span class="nc" id="L321">  }</span>
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MemberDaoImpl.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">reports</a> &gt; <a href="../index.html" class="el_bundle">group-actors</a> &gt; <a href="index.source.html" class="el_package">org.sunbird.dao</a> &gt; <span class="el_source">MemberDaoImpl.java</span></div><h1>MemberDaoImpl.java</h1><pre class="source lang-java linenums">package org.sunbird.dao;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sunbird.cassandra.CassandraOperation;
+import org.sunbird.common.CassandraUtil;
+import org.sunbird.common.Constants;
+import org.sunbird.common.exception.BaseException;
+import org.sunbird.helper.ServiceFactory;
+import org.sunbird.models.Member;
+import org.sunbird.common.response.Response;
+import org.sunbird.util.DBUtil;
+import org.sunbird.common.util.JsonKey;
+
+<span class="nc" id="L23">public class MemberDaoImpl implements MemberDao {</span>
+
+  private static final String GROUP_MEMBER_TABLE = &quot;group_member&quot;;
+  private static final String USER_GROUP_TABLE = &quot;user_group&quot;;
+<span class="nc" id="L27">  private CassandraOperation cassandraOperation = ServiceFactory.getInstance();</span>
+<span class="nc" id="L28">  private ObjectMapper mapper = new ObjectMapper();</span>
+<span class="nc" id="L29">  private static MemberDao memberDao = null;</span>
+<span class="nc" id="L30">  private Logger logger = LoggerFactory.getLogger(MemberDaoImpl.class);</span>
+
+  public static MemberDao getInstance() {
+<span class="nc bnc" id="L33" title="All 2 branches missed.">    if (memberDao == null) {</span>
+<span class="nc" id="L34">      memberDao = new MemberDaoImpl();</span>
+    }
+<span class="nc" id="L36">    return memberDao;</span>
+  }
+
+  @Override
+  public Response addMembers(List&lt;Member&gt; member, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L41">    List&lt;Map&lt;String, Object&gt;&gt; memberList =</span>
+<span class="nc" id="L42">        mapper.convertValue(member, new TypeReference&lt;List&lt;Map&lt;String, Object&gt;&gt;&gt;() {});</span>
+<span class="nc" id="L43">    Response response =</span>
+<span class="nc" id="L44">        cassandraOperation.batchInsert(DBUtil.KEY_SPACE_NAME, GROUP_MEMBER_TABLE, memberList, reqContext);</span>
+<span class="nc" id="L45">    return response;</span>
+  }
+
+  @Override
+  public Response readGroupIdsByUserId(String userId, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L50">    List&lt;String&gt; userIds = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L51">    userIds.add(userId);</span>
+<span class="nc" id="L52">    return readGroupIdsByUserIds(userIds,reqContext);</span>
+  }
+
+  public Response readGroupIdsByUserIds(List&lt;String&gt; memberList, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L56">    Response responseObj =</span>
+<span class="nc" id="L57">        cassandraOperation.getRecordsByPrimaryKeys(</span>
+            DBUtil.KEY_SPACE_NAME, USER_GROUP_TABLE, memberList, JsonKey.USER_ID, reqContext);
+<span class="nc" id="L59">    return responseObj;</span>
+  }
+
+  public Response upsertGroupInUserGroup(Map&lt;String, Object&gt; userGroupMap, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L63">    Response responseObj =</span>
+<span class="nc" id="L64">        cassandraOperation.upsertRecord(DBUtil.KEY_SPACE_NAME, USER_GROUP_TABLE, userGroupMap, reqContext);</span>
+<span class="nc" id="L65">    return responseObj;</span>
+  }
+
+  public Response updateGroupInUserGroup(Map&lt;String, Object&gt; userGroupMap, String userId, Map&lt;String,Object&gt; reqContext)
+      throws BaseException {
+<span class="nc" id="L70">    Map&lt;String, Object&gt; compositeKeyMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L71">    compositeKeyMap.put(JsonKey.USER_ID, userId);</span>
+
+<span class="nc" id="L73">    Response responseObj =</span>
+<span class="nc" id="L74">        cassandraOperation.updateRecord(</span>
+            DBUtil.KEY_SPACE_NAME, USER_GROUP_TABLE, userGroupMap, compositeKeyMap,reqContext);
+<span class="nc" id="L76">    return responseObj;</span>
+  }
+
+  public void deleteFromUserGroup(String userId, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L80">    Map&lt;String, String&gt; compositeKeyMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L81">    compositeKeyMap.put(JsonKey.USER_ID, userId);</span>
+<span class="nc" id="L82">    cassandraOperation.deleteRecord(DBUtil.KEY_SPACE_NAME, USER_GROUP_TABLE, compositeKeyMap,reqContext);</span>
+<span class="nc" id="L83">  }</span>
+
+  @Override
+  public void deleteMemberFromGroup(String groupId, List&lt;String&gt; members, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L87">    List&lt;Map&lt;String, Object&gt;&gt; compositeKeyMap = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L88">    members.forEach(</span>
+        memberId -&gt; {
+<span class="nc" id="L90">          Map&lt;String, Object&gt; primaryKeys = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L91">          primaryKeys.put(JsonKey.GROUP_ID, groupId);</span>
+<span class="nc" id="L92">          primaryKeys.put(JsonKey.USER_ID, memberId);</span>
+<span class="nc" id="L93">          compositeKeyMap.add(primaryKeys);</span>
+<span class="nc" id="L94">        });</span>
+<span class="nc" id="L95">    cassandraOperation.batchDelete(DBUtil.KEY_SPACE_NAME, GROUP_MEMBER_TABLE, compositeKeyMap,reqContext);</span>
+<span class="nc" id="L96">  }</span>
+
+  @Override
+  public Response editMembers(List&lt;Member&gt; member, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L100">    List&lt;Map&lt;String, Map&lt;String, Object&gt;&gt;&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">    for (Member memberObj : member) {</span>
+<span class="nc" id="L102">      list.add(CassandraUtil.batchUpdateQuery(memberObj));</span>
+<span class="nc" id="L103">    }</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">    for (Map&lt;String, Map&lt;String, Object&gt;&gt; record : list) {</span>
+<span class="nc" id="L105">      Map&lt;String, Object&gt; nonPKRecord = record.get(Constants.NON_PRIMARY_KEY);</span>
+<span class="nc" id="L106">      Map&lt;String, Object&gt; filteredNonPKRecord =</span>
+          nonPKRecord
+<span class="nc" id="L108">              .entrySet()</span>
+<span class="nc" id="L109">              .stream()</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">              .filter(map -&gt; (map.getValue() != null))</span>
+<span class="nc" id="L111">              .collect(Collectors.toMap(map -&gt; map.getKey(), map -&gt; map.getValue()));</span>
+<span class="nc" id="L112">      record.put(Constants.NON_PRIMARY_KEY, filteredNonPKRecord);</span>
+<span class="nc" id="L113">    }</span>
+<span class="nc" id="L114">    Response response =</span>
+<span class="nc" id="L115">        cassandraOperation.batchUpdate(DBUtil.KEY_SPACE_NAME, GROUP_MEMBER_TABLE, list,reqContext);</span>
+<span class="nc" id="L116">    return response;</span>
+  }
+
+  @Override
+  public Response fetchMembersByGroupIds(List&lt;String&gt; groupIds, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L121">    Map&lt;String, Object&gt; properties = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L122">    properties.put(JsonKey.GROUP_ID, groupIds);</span>
+<span class="nc" id="L123">    Response responseObj =</span>
+<span class="nc" id="L124">        cassandraOperation.getRecordsByPrimaryKeys(</span>
+            DBUtil.KEY_SPACE_NAME, GROUP_MEMBER_TABLE, groupIds, JsonKey.GROUP_ID,reqContext);
+<span class="nc" id="L126">    return responseObj;</span>
+  }
+
+  @Override
+  public Response fetchGroupByUser(List&lt;String&gt; groupIds, String userId, Map&lt;String,Object&gt; reqContext) throws BaseException {
+<span class="nc" id="L131">    Map&lt;String, Object&gt; properties = new LinkedHashMap&lt;&gt;();</span>
+<span class="nc" id="L132">    properties.put(JsonKey.GROUP_ID, groupIds);</span>
+<span class="nc" id="L133">    properties.put(JsonKey.USER_ID, userId);</span>
+<span class="nc" id="L134">    Response responseObj =</span>
+<span class="nc" id="L135">        cassandraOperation.getRecordsByProperties(</span>
+            DBUtil.KEY_SPACE_NAME, GROUP_MEMBER_TABLE, properties,reqContext);
+<span class="nc" id="L137">    return responseObj;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>
